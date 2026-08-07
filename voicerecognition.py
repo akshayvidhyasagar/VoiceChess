@@ -83,15 +83,27 @@ def tryMove(move):
     global board
     try:
         valMove = board.parse_san(move)
-        san = board.san(valMove)
-        board.push(valMove)
-        move_history.append(san)
-        return True
-
     except ValueError:
-        print(f"Rejected: \"{move}\" is not a legal move right now.")
-        print(f"Current legal moves are: {', '.join([board.san(m) for m in board.legal_moves])}")
-        return False
+        # Voice input never specifies a promotion piece (e.g. "e8"); SAN requires
+        # one explicitly. If the bare move to the last rank is otherwise legal,
+        # assume queen promotion — overwhelmingly the common choice — before rejecting.
+        if move and move[-1] in "18" and move[-2:-1] != "=":
+            try:
+                valMove = board.parse_san(move + "=Q")
+            except ValueError:
+                valMove = None
+        else:
+            valMove = None
+
+        if valMove is None:
+            print(f"Rejected: \"{move}\" is not a legal move right now.")
+            print(f"Current legal moves are: {', '.join([board.san(m) for m in board.legal_moves])}")
+            return False
+
+    san = board.san(valMove)
+    board.push(valMove)
+    move_history.append(san)
+    return True
 
 def format_history():
     parts = []
@@ -108,6 +120,14 @@ def undo_last_move():
     undone = move_history.pop()
     print(f"Undone: {undone}")
 
+def spoken_san(san):
+    """SAN's trailing +/# reads oddly through TTS as literal symbols; say them as words."""
+    if san.endswith("#"):
+        return san[:-1] + " checkmate"
+    if san.endswith("+"):
+        return san[:-1] + " check"
+    return san
+
 def speak(text, filename="_tts_out.mp3"):
     """Speaks text aloud via edge-tts + afplay (macOS). Best-effort: never blocks the game on failure."""
     try:
@@ -119,12 +139,14 @@ def speak(text, filename="_tts_out.mp3"):
         if os.path.exists(filename):
             os.remove(filename)
 
-def save_pgn():
+def save_pgn(result_override=None):
     if not move_history:
         return
     game = chess.pgn.Game.from_board(board)
     game.headers["Event"] = "VoiceChess Game"
     game.headers["Date"] = time.strftime("%Y.%m.%d")
+    if result_override:
+        game.headers["Result"] = result_override
     filename = time.strftime("game_%Y%m%d_%H%M%S.pgn")
     with open(filename, "w") as f:
         print(game, file=f)
@@ -258,12 +280,25 @@ if run_test != "s":
         os.remove("_selftest.wav")
 
 print("\nGame started. Hold SPACE to speak your move on your turn.")
-print("Say 'undo' to take back a move. Ctrl+C to quit.")
+print("Say 'undo' to take back a move, 'resign' to forfeit, or 'draw' to end in a draw. Ctrl+C to quit.")
 
 MAX_FAILS_BEFORE_TYPED_FALLBACK = 3
+game_end_override = None  # (pgn_result, spoken/printed message), set by resign/draw
+
+def declare_resignation(resigning_side):
+    global game_end_override
+    winner = "Black" if resigning_side == "White" else "White"
+    game_end_override = (
+        "0-1" if winner == "Black" else "1-0",
+        f"{resigning_side} resigns. {winner} wins!",
+    )
+
+def declare_draw_by_agreement():
+    global game_end_override
+    game_end_override = ("1/2-1/2", "Game drawn by agreement.")
 
 try:
-    while not board.is_game_over():
+    while not board.is_game_over() and game_end_override is None:
         print()
         print(board)
         if move_history:
@@ -272,21 +307,28 @@ try:
         print(f"\n{mover} to move.")
         Moved = False
         fail_count = 0
-        while not Moved:
+        while not Moved and game_end_override is None:
             if fail_count >= MAX_FAILS_BEFORE_TYPED_FALLBACK:
-                typed = input("\nHaving trouble hearing you — type your move directly (or 'undo'): ").strip()
+                typed = input("\nHaving trouble hearing you — type your move directly (or 'undo'/'resign'/'draw'): ").strip()
                 if not typed:
                     fail_count = 0
                     continue
-                if typed.lower() in ("undo", "takeback", "take back"):
+                typed_lower = typed.lower()
+                if typed_lower in ("undo", "takeback", "take back"):
                     undo_last_move()
+                    break
+                if typed_lower in ("resign", "i resign"):
+                    declare_resignation(mover)
+                    break
+                if typed_lower in ("draw", "offer draw", "agree draw"):
+                    declare_draw_by_agreement()
                     break
                 Moved = tryMove(typed)
                 if not Moved:
                     print("Please try again.")
                     speak("Illegal move, please try again.")
                 else:
-                    speak(f"{mover} plays {move_history[-1]}")
+                    speak(f"{mover} plays {spoken_san(move_history[-1])}")
                 fail_count = 0
                 continue
 
@@ -299,6 +341,12 @@ try:
             normalized = DetectedText.lower()
             if "undo" in normalized or "take back" in normalized or "takeback" in normalized:
                 undo_last_move()
+                break
+            if "resign" in normalized:
+                declare_resignation(mover)
+                break
+            if "draw" in normalized:
+                declare_draw_by_agreement()
                 break
 
             if not DetectedText:
@@ -322,22 +370,30 @@ try:
                 speak("Illegal move, please repeat.")
                 fail_count += 1
             else:
-                speak(f"{mover} plays {move_history[-1]}")
+                speak(f"{mover} plays {spoken_san(move_history[-1])}")
 except KeyboardInterrupt:
     print("\nGame abandoned.")
     save_pgn()
     raise SystemExit
 
-save_pgn()
-print()
-print(board)
-outcome = board.outcome()
-if outcome.winner is None:
-    reason = outcome.termination.name.lower().replace('_', ' ')
-    print(f"\nDraw by {reason}")
-    speak(f"Game over. Draw by {reason}.")
+if game_end_override:
+    result, message = game_end_override
+    save_pgn(result_override=result)
+    print()
+    print(board)
+    print(f"\n{message}")
+    speak(message)
 else:
-    winner = "White" if outcome.winner else "Black"
-    print("\nWinner: ", winner)
-    speak(f"Game over. {winner} wins.")
+    save_pgn()
+    print()
+    print(board)
+    outcome = board.outcome()
+    if outcome.winner is None:
+        reason = outcome.termination.name.lower().replace('_', ' ')
+        print(f"\nDraw by {reason}")
+        speak(f"Game over. Draw by {reason}.")
+    else:
+        winner = "White" if outcome.winner else "Black"
+        print("\nWinner: ", winner)
+        speak(f"Game over. {winner} wins.")
 
