@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# Runtime artifacts (regenerated on every run/game)
+*.wav
+*.mp3
+*.pgn

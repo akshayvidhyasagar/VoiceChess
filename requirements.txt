@@ -1,0 +1,7 @@
+chess>=1.11.2
+faster-whisper>=1.2.1
+edge-tts>=7.2.8
+sounddevice>=0.5.5
+pynput>=1.8.2
+numpy>=2.2.6
+scipy>=1.17.0
