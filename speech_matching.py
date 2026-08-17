@@ -58,10 +58,13 @@ def match_confirm_response(text):
 
 
 def detect_command(text):
-    """Returns "undo", "resign", "draw", "pause", or None.
+    """Parse spoken input to detect game control commands.
 
-    Mirrors the keyword checks previously duplicated between the typed and
-    voice input paths in the game loop.
+    Args:
+        text: Transcribed speech as a string.
+
+    Returns:
+        "undo", "resign", "draw", or "pause" if recognized, or None if unrecognized.
     """
     normalized = _normalize(text)
     if "undo" in normalized or "take back" in normalized or "takeback" in normalized:
