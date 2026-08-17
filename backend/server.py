@@ -126,14 +126,14 @@ async def setup(config: dict) -> dict:
 
 
 @app.post("/api/play-again")
-async def play_again(choice: dict) -> dict:
+async def play_again(request: dict) -> dict:
     """Handle the end-of-game 'play again' choice.
 
-    If choice is 'yes': reset game_setup dict to allow new game configuration.
-    If choice is 'no': log the exit; frontend handles close.
+    If play_again is 'yes': reset game_setup dict to allow new game configuration.
+    If play_again is 'no': log the exit; frontend handles close.
     """
     global game_setup
-    user_choice = choice.get("choice")
+    user_choice = request.get("play_again")
 
     if user_choice == "yes":
         # Reset all config to None and ready to False so we loop back to setup

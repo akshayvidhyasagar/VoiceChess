@@ -91,7 +91,7 @@ def test_play_again_endpoint_yes():
     assert game_setup["input_mode"] == "voice"
 
     # User chooses to play again
-    play_again_payload = {"choice": "yes"}
+    play_again_payload = {"play_again": "yes"}
     response = client.post("/api/play-again", json=play_again_payload)
 
     assert response.status_code == 200
@@ -129,7 +129,7 @@ def test_play_again_endpoint_no():
     }
 
     # User chooses not to play again
-    play_again_payload = {"choice": "no"}
+    play_again_payload = {"play_again": "no"}
     response = client.post("/api/play-again", json=play_again_payload)
 
     assert response.status_code == 200
