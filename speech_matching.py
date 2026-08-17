@@ -39,7 +39,14 @@ def match_self_test_response(text):
 
 
 def match_confirm_response(text):
-    """Returns "confirm", "repeat", or None."""
+    """Parse spoken input to confirm or reject a suggestion.
+
+    Args:
+        text: Transcribed speech as a string.
+
+    Returns:
+        "confirm" if user confirms, "repeat" if user requests re-speak, or None if unrecognized.
+    """
     normalized = _normalize(text)
     confirm_words = ("confirm", "yes", "correct", "right")
     repeat_words = ("repeat", "no", "redo", "wrong")

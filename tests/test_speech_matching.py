@@ -38,3 +38,7 @@ def test_match_confirm_response():
     assert match_confirm_response("no, that's wrong") == "repeat"
     assert match_confirm_response("redo it") == "repeat"
     assert match_confirm_response("banana") is None
+    assert match_confirm_response("") is None
+    assert match_confirm_response("CONFIRM") == "confirm"
+    assert match_confirm_response("YES") == "confirm"
+    assert match_confirm_response("NO") == "repeat"
