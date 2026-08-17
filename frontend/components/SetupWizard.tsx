@@ -21,6 +21,34 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   const [elo, setElo] = useState(1600);
   const [humanColor, setHumanColor] = useState<"white" | "black" | "random">("random");
 
+  // Browser TTS helper — cancels any current utterance before speaking
+  const speak = (text: string) => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.95;
+    utterance.pitch = 1;
+    // Prefer a clear English voice if available
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find((v) =>
+      v.lang.startsWith("en") && (v.name.includes("Samantha") || v.name.includes("Google") || v.name.includes("Daniel"))
+    );
+    if (preferred) utterance.voice = preferred;
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Speak the question for each step when it changes
+  useEffect(() => {
+    const questions: Record<number, string> = {
+      1: "Welcome to VoiceChess. Would you like to use push to talk or fully voice mode?",
+      2: "Would you like to play against the computer, or against another player?",
+      3: "Choose a difficulty: beginner, intermediate, advanced, or master. Then say your color: white, black, or random.",
+      4: "All set. Say start or press Start Game to begin.",
+    };
+    const msg = questions[step];
+    if (msg) speak(msg);
+  }, [step]);
+
   const handleNext = () => {
     if (step === 1) {
       if (!inputMode) return;
@@ -43,6 +71,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
 
   const handleStartGame = () => {
     if (inputMode && gameMode && humanColor) {
+      speak("Starting game. Good luck!");
       onComplete({
         input_mode: inputMode,
         game_mode: gameMode,
@@ -59,22 +88,26 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     // Step 1: Input Mode Selection
     if (step === 1) {
       if (text.includes("voice") || text.includes("fully")) {
+        speak("Fully voice mode selected.");
         setInputMode("voice");
-        setTimeout(() => setStep(2), 500);
+        setTimeout(() => setStep(2), 1200);
       } else if (text.includes("push") || text.includes("spacebar") || text.includes("talk")) {
+        speak("Push to talk mode selected.");
         setInputMode("ptt");
-        setTimeout(() => setStep(2), 500);
+        setTimeout(() => setStep(2), 1200);
       }
     }
 
     // Step 2: Game Mode Selection
     else if (step === 2) {
       if (text.includes("computer") || text.includes("single") || text.includes("stockfish")) {
+        speak("Single player mode. Let's choose your difficulty.");
         setGameMode("single");
-        setTimeout(() => setStep(3), 500);
+        setTimeout(() => setStep(3), 1500);
       } else if (text.includes("double") || text.includes("human") || text.includes("two")) {
+        speak("Two player mode.");
         setGameMode("double");
-        setTimeout(() => setStep(4), 500);
+        setTimeout(() => setStep(4), 1200);
       }
     }
 
@@ -93,14 +126,17 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
 
       // Check for color
       if (text.includes("white")) {
+        speak("You will play as white.");
         setHumanColor("white");
-        setTimeout(() => setStep(4), 500);
+        setTimeout(() => setStep(4), 1200);
       } else if (text.includes("black")) {
+        speak("You will play as black.");
         setHumanColor("black");
-        setTimeout(() => setStep(4), 500);
+        setTimeout(() => setStep(4), 1200);
       } else if (text.includes("random") || text.includes("either") || text.includes("any")) {
+        speak("Random color. The computer will decide.");
         setHumanColor("random");
-        setTimeout(() => setStep(4), 500);
+        setTimeout(() => setStep(4), 1500);
       }
     }
 

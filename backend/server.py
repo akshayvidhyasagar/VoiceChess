@@ -113,6 +113,7 @@ async def setup(config: dict) -> dict:
     """Receive game setup configuration from the browser.
 
     Populates the shared game_setup dict and signals the backend thread to proceed.
+    Immediately broadcasts an in_progress state so the frontend transitions to the board.
     """
     global game_setup
     game_setup["input_mode"] = config.get("input_mode")
@@ -124,6 +125,28 @@ async def setup(config: dict) -> dict:
     print(f"[setup] Received config: input_mode={config.get('input_mode')}, "
           f"game_mode={config.get('game_mode')}, elo={config.get('elo')}, "
           f"human_color={config.get('human_color')}")
+
+    # Immediately push an in_progress state so the frontend transitions to the board
+    # before the game loop thread even picks up the config.
+    broadcaster = get_broadcaster()
+    import chess as _chess
+    _board = _chess.Board()
+    broadcaster.push_state(
+        board=_board,
+        move_history=[],
+        game_mode=config.get("game_mode"),
+        elo=config.get("elo"),
+        human_color=config.get("human_color"),
+        game_end_override=None,
+        start_time=None,
+        white_time=0.0,
+        black_time=0.0,
+        input_mode=config.get("input_mode"),
+        mic_status="idle",
+        last_transcript=None,
+    )
+    # Patch the status to in_progress so the gate flips
+    broadcaster._last_payload["status"] = "in_progress"
 
     return {"status": "ok", "game_started": True}
 
@@ -145,6 +168,9 @@ async def play_again(request: dict) -> dict:
         game_setup["elo"] = None
         game_setup["human_color"] = None
         game_setup["ready"] = False
+        # Reset broadcaster to waiting so frontend shows wizard again
+        get_broadcaster()._last_payload["status"] = "waiting"
+        get_broadcaster()._last_payload["mode"] = None
         print("[play-again] User chose to play again; game_setup reset")
     elif user_choice == "no":
         print("[play-again] User chose to exit")

@@ -11,17 +11,25 @@ import { useSetupWizard } from "@/hooks/useSetupWizard";
 
 export default function Home() {
   const { state, connectionStatus } = useGameSocket();
-  const { isSetupComplete, submitSetup, resetSetup, isSubmitting, error } = useSetupWizard();
+  const { submitSetup, resetSetup, isSubmitting, error } = useSetupWizard();
 
-  // Don't show board until setup is complete
-  if (!isSetupComplete) {
+  // Game is running if the backend says so — this survives page refresh
+  const gameIsRunning =
+    state.status === "in_progress" ||
+    state.status === "checkmate" ||
+    state.status === "stalemate" ||
+    state.status === "draw" ||
+    state.status === "resigned";
+
+  // Show setup wizard when backend is still waiting (or on first load before WS connects)
+  if (!gameIsRunning) {
     return (
       <main className="min-h-screen bg-zinc-900 flex flex-col items-center justify-center p-4">
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold tracking-tight text-zinc-100 uppercase tracking-widest">
             VoiceChess
           </h1>
-          <p className="text-zinc-550 text-xs mt-1.5 uppercase tracking-wider">
+          <p className="text-zinc-400 text-xs mt-1.5 uppercase tracking-wider">
             Setup Wizard
           </p>
         </div>
@@ -54,7 +62,7 @@ export default function Home() {
         <h1 className="text-3xl font-bold tracking-tight text-zinc-100 uppercase tracking-widest">
           VoiceChess
         </h1>
-        <p className="text-zinc-550 text-xs mt-1.5 uppercase tracking-wider">
+        <p className="text-zinc-400 text-xs mt-1.5 uppercase tracking-wider">
           Spectator Dashboard
         </p>
       </div>
@@ -99,7 +107,7 @@ export default function Home() {
       </div>
 
       {/* Footer hint */}
-      <p className="mt-12 text-zinc-650 text-xxs uppercase tracking-wider text-center max-w-sm leading-normal">
+      <p className="mt-12 text-zinc-500 text-xs uppercase tracking-wider text-center max-w-sm leading-normal">
         Moves are made by voice only. This display updates automatically as each
         move is spoken.
       </p>
