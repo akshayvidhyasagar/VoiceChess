@@ -152,15 +152,17 @@ def test_play_again_endpoint_no():
 
 def test_transcribe_endpoint_valid_audio():
     """POST /api/transcribe with valid audio returns transcript and confidence."""
-    client = TestClient(app)
-
     # Mock a segment object that has .text attribute
     mock_segment = Mock()
     mock_segment.text = "knight to f3"
 
-    # Mock the model.transcribe method to return segments and info
-    with patch("voicerecognition.model.transcribe") as mock_transcribe:
-        mock_transcribe.return_value = ([mock_segment], {"language": "en"})
+    # Mock the model's transcribe method via server module
+    with patch("server._get_whisper_model") as mock_get_model:
+        mock_model = Mock()
+        mock_model.transcribe.return_value = ([mock_segment], {"language": "en"})
+        mock_get_model.return_value = (mock_model, "test prompt")
+
+        client = TestClient(app)
 
         # Create a fake WAV file bytes
         audio_bytes = b"RIFF\x00\x00\x00\x00WAVEfmt \x10\x00\x00\x00"
@@ -177,11 +179,13 @@ def test_transcribe_endpoint_valid_audio():
 
 def test_transcribe_endpoint_empty_audio():
     """POST /api/transcribe with no speech segments returns empty transcript."""
-    client = TestClient(app)
+    # Mock the model's transcribe method via server module
+    with patch("server._get_whisper_model") as mock_get_model:
+        mock_model = Mock()
+        mock_model.transcribe.return_value = ([], {"language": "en"})
+        mock_get_model.return_value = (mock_model, "test prompt")
 
-    # Mock the model.transcribe method to return no segments
-    with patch("voicerecognition.model.transcribe") as mock_transcribe:
-        mock_transcribe.return_value = ([], {"language": "en"})
+        client = TestClient(app)
 
         # Create a fake WAV file bytes
         audio_bytes = b"RIFF\x00\x00\x00\x00WAVEfmt \x10\x00\x00\x00"

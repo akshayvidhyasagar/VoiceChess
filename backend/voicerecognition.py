@@ -384,10 +384,16 @@ def select_mode():
         speak("Sorry, I didn't catch that. Say push to talk, or say fully voice.")
 
 
-MODE = select_mode()
-print(f"Mode selected: {'Push-to-talk' if MODE == 'ptt' else 'Fully voice'}")
+_SKIP_GAME_LOOP = os.getenv("PYTEST_CURRENT_TEST") is not None
 
-if MODE == "ptt":
+if _SKIP_GAME_LOOP:
+    # During tests, skip the game loop setup
+    MODE = "ptt"
+else:
+    MODE = select_mode()
+    print(f"Mode selected: {'Push-to-talk' if MODE == 'ptt' else 'Fully voice'}")
+
+if MODE == "ptt" and not _SKIP_GAME_LOOP:
     run_test = input("Press Enter to test your mic & speaker setup first, or type 's' to skip: ").strip().lower()
     if run_test != "s":
         test_move = input("Type a move to speak back (default e4): ").strip() or "e4"
@@ -848,25 +854,26 @@ def web_wait_for_setup():
     return result
 
 
-try:
-    while True:
-        # Get setup configuration from browser wizard via /api/setup
-        input_mode, game_mode, elo, human_color = web_wait_for_setup()
+if not _SKIP_GAME_LOOP:
+    try:
+        while True:
+            # Get setup configuration from browser wizard via /api/setup
+            input_mode, game_mode, elo, human_color = web_wait_for_setup()
 
-        # Set global MODE for the game loop to use
-        MODE = input_mode
+            # Set global MODE for the game loop to use
+            MODE = input_mode
 
-        if game_mode == "single":
-            speak(f"Starting a game against Stockfish rated {elo}.")
-            print(f"Starting a game against Stockfish rated {elo}.")
-            play_game(game_mode, elo=elo, human_color=human_color)
-        else:
-            play_game(game_mode, human_color=human_color)
+            if game_mode == "single":
+                speak(f"Starting a game against Stockfish rated {elo}.")
+                print(f"Starting a game against Stockfish rated {elo}.")
+                play_game(game_mode, elo=elo, human_color=human_color)
+            else:
+                play_game(game_mode, human_color=human_color)
 
-        # Loop back to waiting for next game setup
-except SystemExit:
-    pass
-except KeyboardInterrupt:
-    print("\nGame abandoned.")
+            # Loop back to waiting for next game setup
+    except SystemExit:
+        pass
+    except KeyboardInterrupt:
+        print("\nGame abandoned.")
 
 

@@ -152,6 +152,46 @@ async def play_again(request: dict) -> dict:
     return {"status": "ok"}
 
 
+# Global Whisper model (lazy-loaded on first transcribe call or when voicerecognition thread loads it)
+_whisper_model = None
+_prompt_string = (
+    "K, N, Q, B, R, Castle Queenside, Castle Kingside, Check, Checkmate, "
+    "King, Queen, Knight, Bishop, Rook, Pawn, takes, a, b, c, d, e, f, g, h, "
+    "a1, a2, a3, a4, a5, a6, a7, a8, b1, b2, b3, b4, b5, b6, b7, b8, "
+    "c1, c2, c3, c4, c5, c6, c7, c8, d1, d2, d3, d4, d5, d6, d7, d8, "
+    "e1, e2, e3, e4, e5, e6, e7, e8, f1, f2, f3, f4, f5, f6, f7, f8, "
+    "g1, g2, g3, g4, g5, g6, g7, g8, h1, h2, h3, h4, h5, h6, h7, h8"
+)
+
+
+def _get_whisper_model():
+    """Get the Whisper model, loading it if necessary.
+
+    First tries to use the model from the voicerecognition module
+    (loaded by game loop thread). Falls back to loading directly.
+    """
+    global _whisper_model
+
+    if _whisper_model is not None:
+        return _whisper_model, _prompt_string
+
+    # Try to get the model from the voicerecognition module (if it's been imported)
+    try:
+        import voicerecognition
+        return voicerecognition.model, voicerecognition.prompt_string
+    except (ImportError, AttributeError):
+        # voicerecognition not available yet; load the model directly
+        # (This path is used in tests and during early server startup)
+        pass
+
+    # Load the Whisper model directly if not already loaded
+    if _whisper_model is None:
+        from faster_whisper import WhisperModel
+        _whisper_model = WhisperModel("small", device="cpu", compute_type="int8")
+
+    return _whisper_model, _prompt_string
+
+
 @app.post("/api/transcribe")
 async def transcribe(audio: UploadFile = File(...)) -> dict:
     """Receive audio WAV blob, run Whisper transcription, return transcript.
@@ -161,8 +201,8 @@ async def transcribe(audio: UploadFile = File(...)) -> dict:
     On error: {"transcript": "", "confidence": 0.0}
     """
     try:
-        # Import voicerecognition to access the model and prompt string
-        import voicerecognition
+        # Get the Whisper model (from voicerecognition if available, or load directly)
+        model, prompt_string = _get_whisper_model()
 
         # Save uploaded file to temporary WAV file
         temp_fd, temp_path = tempfile.mkstemp(suffix=".wav")
@@ -173,18 +213,20 @@ async def transcribe(audio: UploadFile = File(...)) -> dict:
             os.close(temp_fd)
 
             # Run Whisper transcription with the same parameters as voicerecognition.py
-            segments, info = voicerecognition.model.transcribe(
+            segments, info = model.transcribe(
                 temp_path,
                 language="en",
                 vad_filter=False,
                 beam_size=5,
-                initial_prompt=voicerecognition.prompt_string,
+                initial_prompt=prompt_string,
             )
 
             # Extract transcript from segments
             transcribed_text = " ".join([segment.text for segment in segments]).strip()
 
-            return {"transcript": transcribed_text, "confidence": 0.95}
+            # Return 0.0 confidence for empty transcripts
+            confidence = 0.95 if transcribed_text else 0.0
+            return {"transcript": transcribed_text, "confidence": confidence}
         finally:
             # Always clean up the temp file
             if os.path.exists(temp_path):
