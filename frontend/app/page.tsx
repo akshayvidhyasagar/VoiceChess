@@ -5,10 +5,43 @@ import { StatusBar } from "@/components/StatusBar";
 import { GameEndOverlay } from "@/components/GameEndOverlay";
 import { GameStatsSidebar } from "@/components/GameStatsSidebar";
 import { VoiceSessionPanel } from "@/components/VoiceSessionPanel";
+import { SetupWizard } from "@/components/SetupWizard";
 import { useGameSocket } from "@/hooks/useGameSocket";
+import { useSetupWizard } from "@/hooks/useSetupWizard";
 
 export default function Home() {
   const { state, connectionStatus } = useGameSocket();
+  const { isSetupComplete, submitSetup, resetSetup, isSubmitting, error } = useSetupWizard();
+
+  // Don't show board until setup is complete
+  if (!isSetupComplete) {
+    return (
+      <main className="min-h-screen bg-zinc-900 flex flex-col items-center justify-center p-4">
+        <div className="mb-8 text-center">
+          <h1 className="text-3xl font-bold tracking-tight text-zinc-100 uppercase tracking-widest">
+            VoiceChess
+          </h1>
+          <p className="text-zinc-550 text-xs mt-1.5 uppercase tracking-wider">
+            Setup Wizard
+          </p>
+        </div>
+
+        {error && (
+          <div className="mb-4 p-4 bg-red-900 text-red-100 rounded max-w-md">
+            {error}
+          </div>
+        )}
+
+        <SetupWizard onComplete={submitSetup} />
+
+        {isSubmitting && (
+          <div className="mt-4 text-zinc-400">
+            Starting game...
+          </div>
+        )}
+      </main>
+    );
+  }
 
   // Orientation: in single-player, face the human's colour; else always white.
   const orientation =
@@ -49,7 +82,11 @@ export default function Home() {
                 orientation={orientation}
                 lastMoveUci={state.last_move_uci}
               />
-              <GameEndOverlay status={state.status} message={state.message} />
+              <GameEndOverlay
+                status={state.status}
+                message={state.message}
+                onPlayAgain={resetSetup}
+              />
             </div>
           </div>
 
