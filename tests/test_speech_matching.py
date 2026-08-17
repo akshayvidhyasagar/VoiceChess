@@ -1,4 +1,4 @@
-from speech_matching import match_mode_selection, match_self_test_response, match_confirm_response
+from speech_matching import match_mode_selection, match_self_test_response, match_confirm_response, detect_command
 
 
 def test_match_mode_selection_push_to_talk():
@@ -42,3 +42,13 @@ def test_match_confirm_response():
     assert match_confirm_response("CONFIRM") == "confirm"
     assert match_confirm_response("YES") == "confirm"
     assert match_confirm_response("NO") == "repeat"
+
+
+def test_detect_command():
+    assert detect_command("undo that") == "undo"
+    assert detect_command("take back") == "undo"
+    assert detect_command("takeback") == "undo"
+    assert detect_command("I resign") == "resign"
+    assert detect_command("let's draw") == "draw"
+    assert detect_command("pause game") == "pause"
+    assert detect_command("knight to f3") is None

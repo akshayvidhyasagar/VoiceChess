@@ -55,3 +55,21 @@ def match_confirm_response(text):
     if any(word in normalized for word in repeat_words):
         return "repeat"
     return None
+
+
+def detect_command(text):
+    """Returns "undo", "resign", "draw", "pause", or None.
+
+    Mirrors the keyword checks previously duplicated between the typed and
+    voice input paths in the game loop.
+    """
+    normalized = _normalize(text)
+    if "undo" in normalized or "take back" in normalized or "takeback" in normalized:
+        return "undo"
+    if "resign" in normalized:
+        return "resign"
+    if "draw" in normalized:
+        return "draw"
+    if "pause" in normalized:
+        return "pause"
+    return None
