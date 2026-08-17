@@ -51,6 +51,19 @@ app.add_middleware(
 
 
 # ---------------------------------------------------------------------------
+# Shared state — game setup configuration
+# ---------------------------------------------------------------------------
+
+game_setup = {
+    "input_mode": None,
+    "game_mode": None,
+    "elo": None,
+    "human_color": None,
+    "ready": False,
+}
+
+
+# ---------------------------------------------------------------------------
 # Lifecycle — register the running event loop with the broadcaster
 # ---------------------------------------------------------------------------
 
@@ -90,6 +103,22 @@ def _run_game_loop() -> None:
 @app.get("/health")
 async def health() -> dict:
     return {"status": "ok"}
+
+
+@app.post("/api/setup")
+async def setup(config: dict) -> dict:
+    """Receive game setup configuration from the browser.
+
+    Populates the shared game_setup dict and signals the backend thread to proceed.
+    """
+    global game_setup
+    game_setup["input_mode"] = config.get("input_mode")
+    game_setup["game_mode"] = config.get("game_mode")
+    game_setup["elo"] = config.get("elo")
+    game_setup["human_color"] = config.get("human_color")
+    game_setup["ready"] = True
+
+    return {"status": "ok", "game_started": True}
 
 
 @app.get("/state")
