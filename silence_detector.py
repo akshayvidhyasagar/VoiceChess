@@ -18,3 +18,51 @@ def compute_thresholds(calibration_rms_samples):
     baseline = sum(calibration_rms_samples) / len(calibration_rms_samples)
     baseline = max(baseline, 0.001)  # avoid a near-zero baseline making thresholds too sensitive
     return baseline * 4, baseline * 2
+
+
+DEFAULT_SILENCE_HANG_DURATION = 2.5  # seconds of continuous silence that ends a recording
+DEFAULT_MAX_INITIAL_WAIT = 8.0       # seconds to wait for speech to start before giving up
+DEFAULT_MAX_TOTAL_DURATION = 20.0    # hard cap regardless of speech/silence
+DEFAULT_CHUNK_DURATION = 0.1         # seconds per RMS sample fed to the detector
+
+
+class SilenceDetector:
+    """Feed RMS values one chunk at a time; reports when to stop recording.
+
+    The generous default silence_hang_duration (2.5s) is intentional: it
+    lets a speaker pause mid-move to think without being cut off, while
+    still ending the recording once they're actually done talking.
+    """
+
+    def __init__(self, speech_threshold, silence_threshold,
+                 silence_hang_duration=DEFAULT_SILENCE_HANG_DURATION,
+                 max_initial_wait=DEFAULT_MAX_INITIAL_WAIT,
+                 max_total_duration=DEFAULT_MAX_TOTAL_DURATION,
+                 chunk_duration=DEFAULT_CHUNK_DURATION):
+        self.speech_threshold = speech_threshold
+        self.silence_threshold = silence_threshold
+        self.silence_hang_duration = silence_hang_duration
+        self.max_initial_wait = max_initial_wait
+        self.max_total_duration = max_total_duration
+        self.chunk_duration = chunk_duration
+        self.started = False
+        self.silence_elapsed = 0.0
+        self.total_elapsed = 0.0
+
+    def feed(self, rms):
+        """Returns "continue", "stop_timeout", "stop_silence", or "stop_max_duration"."""
+        self.total_elapsed += self.chunk_duration
+
+        if rms >= self.speech_threshold:
+            self.started = True
+            self.silence_elapsed = 0.0
+        elif self.started:
+            self.silence_elapsed += self.chunk_duration
+
+        if self.total_elapsed >= self.max_total_duration:
+            return "stop_max_duration"
+        if not self.started and self.total_elapsed >= self.max_initial_wait:
+            return "stop_timeout"
+        if self.started and self.silence_elapsed >= self.silence_hang_duration:
+            return "stop_silence"
+        return "continue"
