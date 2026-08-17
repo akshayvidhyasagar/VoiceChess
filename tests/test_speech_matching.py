@@ -1,4 +1,4 @@
-from speech_matching import match_mode_selection, match_self_test_response
+from speech_matching import match_mode_selection, match_self_test_response, match_confirm_response
 
 
 def test_match_mode_selection_push_to_talk():
@@ -28,3 +28,13 @@ def test_match_self_test_response():
     assert match_self_test_response("skip") == "skip"
     assert match_self_test_response("please skip the test") == "skip"
     assert match_self_test_response("banana") is None
+
+
+def test_match_confirm_response():
+    assert match_confirm_response("confirm") == "confirm"
+    assert match_confirm_response("yes that's right") == "confirm"
+    assert match_confirm_response("correct") == "confirm"
+    assert match_confirm_response("repeat") == "repeat"
+    assert match_confirm_response("no, that's wrong") == "repeat"
+    assert match_confirm_response("redo it") == "repeat"
+    assert match_confirm_response("banana") is None

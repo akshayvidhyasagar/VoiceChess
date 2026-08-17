@@ -36,3 +36,15 @@ def match_self_test_response(text):
     if "test" in normalized:
         return "test"
     return None
+
+
+def match_confirm_response(text):
+    """Returns "confirm", "repeat", or None."""
+    normalized = _normalize(text)
+    confirm_words = ("confirm", "yes", "correct", "right")
+    repeat_words = ("repeat", "no", "redo", "wrong")
+    if any(word in normalized for word in confirm_words):
+        return "confirm"
+    if any(word in normalized for word in repeat_words):
+        return "repeat"
+    return None
