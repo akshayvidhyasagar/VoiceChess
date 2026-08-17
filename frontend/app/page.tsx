@@ -1,14 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ChessBoard } from "@/components/ChessBoard";
+import { ChessGroundBoard } from "@/components/ChessGroundBoard";
 import { StatusBar } from "@/components/StatusBar";
 import { GameEndOverlay } from "@/components/GameEndOverlay";
+import { GameStatsSidebar } from "@/components/GameStatsSidebar";
 import { useGameSocket } from "@/hooks/useGameSocket";
 
-/**
- * Compute board pixel width — capped at 560px, 16px padding on each side.
- */
 function useBoardWidth() {
   const [width, setWidth] = useState(560);
   const update = useCallback(() => {
@@ -33,7 +31,7 @@ export default function Home() {
     state.mode === "single" && state.human_color === "black" ? "black" : "white";
 
   return (
-    <main className="min-h-screen bg-zinc-900 flex flex-col items-center justify-center px-4 py-8 select-none">
+    <main className="min-h-screen bg-zinc-900 flex flex-col items-center justify-center p-4 lg:p-8 select-none">
       {/* Header */}
       <div className="mb-6 text-center">
         <h1 className="text-3xl font-bold tracking-tight text-zinc-100">
@@ -44,25 +42,33 @@ export default function Home() {
         </p>
       </div>
 
-      {/* Status bar */}
-      <StatusBar state={state} connectionStatus={connectionStatus} />
+      <div className="w-full max-w-5xl flex flex-col gap-6">
+        {/* Status bar */}
+        <StatusBar state={state} connectionStatus={connectionStatus} />
 
-      {/* Board + overlay */}
-      <div
-        className="relative"
-        style={{ width: boardWidth, maxWidth: "560px" }}
-        data-testid="board-container"
-      >
-        <ChessBoard
-          fen={state.fen}
-          orientation={orientation}
-          lastMoveUci={state.last_move_uci}
-        />
-        <GameEndOverlay status={state.status} message={state.message} />
+        {/* Sidebar + Board container */}
+        <div className="flex flex-col lg:flex-row gap-6 items-stretch justify-center">
+          {/* Board + overlay */}
+          <div
+            className="relative flex-1 flex items-center justify-center"
+            style={{ maxWidth: "560px", margin: "0 auto" }}
+            data-testid="board-container"
+          >
+            <ChessGroundBoard
+              fen={state.fen}
+              orientation={orientation}
+              lastMoveUci={state.last_move_uci}
+            />
+            <GameEndOverlay status={state.status} message={state.message} />
+          </div>
+
+          {/* Stats Sidebar */}
+          <GameStatsSidebar state={state} />
+        </div>
       </div>
 
       {/* Footer hint */}
-      <p className="mt-6 text-zinc-600 text-xs text-center max-w-sm">
+      <p className="mt-8 text-zinc-650 text-xs text-center max-w-sm">
         Moves are made by voice only. This display updates automatically as each
         move is spoken.
       </p>

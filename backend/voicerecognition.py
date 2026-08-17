@@ -98,8 +98,17 @@ def build_prompt():
 
 move_history = []
 
-# Game-session context shared with broadcast helper
-_game_context = {"mode": None, "elo": None, "human_color": None, "end_override": None}
+# Game-session context — includes timing for the sidebar
+_game_context = {
+    "mode": None,
+    "elo": None,
+    "human_color": None,
+    "end_override": None,
+    "start_time": None,      # float: time.time() when game started
+    "move_start_time": None, # float: time.time() when current turn began
+    "white_time": 0.0,       # cumulative seconds white has spent on moves
+    "black_time": 0.0,       # cumulative seconds black has spent on moves
+}
 
 
 def _broadcast_state() -> None:
@@ -115,9 +124,25 @@ def _broadcast_state() -> None:
             _game_context["elo"],
             _game_context["human_color"],
             _game_context["end_override"],
+            start_time=_game_context["start_time"],
+            white_time=_game_context["white_time"],
+            black_time=_game_context["black_time"],
         )
     except Exception:
         pass  # UI is optional; never let it affect the game
+
+def _tick_move_clock() -> None:
+    """Accumulate elapsed time for whoever just moved, then reset the clock."""
+    now = time.time()
+    if _game_context["move_start_time"] is not None:
+        elapsed = now - _game_context["move_start_time"]
+        # board.turn has already flipped after board.push(), so the mover was the OTHER side
+        if board.turn == chess.WHITE:       # black just moved
+            _game_context["black_time"] += elapsed
+        else:                               # white just moved
+            _game_context["white_time"] += elapsed
+    _game_context["move_start_time"] = now
+
 
 def tryMove(move):
     global board
@@ -143,13 +168,17 @@ def tryMove(move):
     san = board.san(valMove)
     board.push(valMove)
     move_history.append(san)
+    _tick_move_clock()    # update per-player timing
+    _broadcast_state()    # push immediately — don't wait for next loop iteration
     return True
+
 
 def format_history():
     parts = []
     for i, san in enumerate(move_history):
         parts.append(f"{i // 2 + 1}.{san}" if i % 2 == 0 else san)
     return " ".join(parts)
+
 
 def undo_last_move():
     global board
@@ -159,6 +188,8 @@ def undo_last_move():
     board.pop()
     undone = move_history.pop()
     print(f"Undone: {undone}")
+    _game_context["move_start_time"] = time.time()  # reset clock for re-do
+    _broadcast_state()   # push immediately
 
 def spoken_san(san):
     """SAN's trailing +/# reads oddly through TTS as literal symbols; say them as words."""
@@ -530,7 +561,11 @@ def play_game(game_mode, elo=1600, human_color="white"):
     _game_context["elo"] = elo if game_mode == "single" else None
     _game_context["human_color"] = human_color if game_mode == "single" else None
     _game_context["end_override"] = None
-    _broadcast_state()  # Announce game start (in_progress, starting FEN)
+    _game_context["start_time"] = time.time()
+    _game_context["move_start_time"] = time.time()
+    _game_context["white_time"] = 0.0
+    _game_context["black_time"] = 0.0
+    _broadcast_state()  # Announce game start
     
     bot = None
     if game_mode == "single":
@@ -558,7 +593,10 @@ def play_game(game_mode, elo=1600, human_color="white"):
             
             mover = "White" if board.turn else "Black"
             print(f"\n{mover} to move.")
-            _broadcast_state()  # Push state at the start of each turn
+            # Note: state is already broadcast immediately after each move/undo.
+            # This broadcast covers the very first turn (no prior move yet).
+            if not move_history:
+                _broadcast_state()
             
             # Check if it is the bot's turn
             is_bot_turn = (
@@ -574,6 +612,8 @@ def play_game(game_mode, elo=1600, human_color="white"):
                 san = board.san(bot_move)
                 board.push(bot_move)
                 move_history.append(san)
+                _tick_move_clock()   # update timing
+                _broadcast_state()   # push immediately — before TTS
                 print(f"\nStockfish plays {san}")
                 speak(f"{mover} plays {spoken_san(san)}")
                 continue

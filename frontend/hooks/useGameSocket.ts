@@ -31,6 +31,10 @@ export interface GameState {
   last_move_uci: string | null;
   message: string;
   move_number: number;
+  game_elapsed_seconds?: number;
+  white_time_seconds?: number;
+  black_time_seconds?: number;
+  move_history_list?: string[];
 }
 
 export type ConnectionStatus = "connecting" | "connected" | "disconnected";
@@ -49,6 +53,10 @@ const DEFAULT_STATE: GameState = {
   last_move_uci: null,
   message: "Waiting for game to start…",
   move_number: 1,
+  game_elapsed_seconds: 0,
+  white_time_seconds: 0,
+  black_time_seconds: 0,
+  move_history_list: [],
 };
 
 // ---------------------------------------------------------------------------

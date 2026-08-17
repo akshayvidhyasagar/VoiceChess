@@ -4,9 +4,8 @@ The voice/game loop runs in a background thread; the FastAPI server runs
 the asyncio event loop on the main thread.  This module bridges them:
 
   - The game thread calls ``push_state(...)`` (synchronous).
-  - ``push_state`` schedules a coroutine on the FastAPI event loop via
-    ``loop.call_soon_threadsafe``, which fans the payload out to every
-    connected WebSocket.
+  - ``push_state`` uses ``asyncio.run_coroutine_threadsafe`` (the correct,
+    standard way) to schedule the broadcast coroutine on the FastAPI loop.
 
 No imports from voicerecognition.py here — the dependency is one-way.
 """
@@ -16,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
+import time
 from typing import Optional
 
 import chess
@@ -26,7 +26,6 @@ import chess
 # ---------------------------------------------------------------------------
 
 def _game_status(board: chess.Board, game_end_override) -> str:
-    """Derive a status string from the current board and override."""
     if game_end_override:
         result, _ = game_end_override
         if result in ("1-0", "0-1"):
@@ -48,6 +47,9 @@ def build_payload(
     elo: Optional[int],
     human_color: Optional[str],
     game_end_override=None,
+    start_time: Optional[float] = None,
+    white_time: float = 0.0,
+    black_time: float = 0.0,
 ) -> dict:
     """Return a JSON-serialisable dict representing the current game state."""
     last_san = move_history[-1] if move_history else None
@@ -56,7 +58,7 @@ def build_payload(
         last_uci = board.peek().uci()
 
     turn = "white" if board.turn == chess.WHITE else "black"
-    mover = "White" if board.turn == chess.WHITE else "Black"
+    mover_who_just_moved = "Black" if board.turn == chess.WHITE else "White"
     status = _game_status(board, game_end_override)
 
     if game_end_override:
@@ -67,24 +69,32 @@ def build_payload(
     elif status in ("stalemate", "draw"):
         message = "Game drawn."
     elif last_san:
-        mover_who_just_moved = "Black" if board.turn == chess.WHITE else "White"
         message = f"{mover_who_just_moved} plays {last_san}"
     else:
+        mover = "White" if board.turn == chess.WHITE else "Black"
         message = f"Waiting for {mover} to move."
 
     move_number = (len(move_history) + 2) // 2 if move_history else 1
+    now = time.time()
+    game_elapsed = round(now - start_time) if start_time else 0
 
     return {
         "fen": board.fen(),
         "turn": turn,
-        "mode": game_mode,          # "single" | "double" | None (waiting)
-        "bot_elo": elo,             # int or null
-        "human_color": human_color, # "white" | "black" | null
+        "mode": game_mode,
+        "bot_elo": elo,
+        "human_color": human_color,
         "status": status,
         "last_move_san": last_san,
         "last_move_uci": last_uci,
         "message": message,
         "move_number": move_number,
+        # Timing
+        "game_elapsed_seconds": game_elapsed,
+        "white_time_seconds": round(white_time),
+        "black_time_seconds": round(black_time),
+        # Full move list for sidebar
+        "move_history_list": list(move_history),
     }
 
 
@@ -100,7 +110,6 @@ class GameBroadcaster:
         self._lock = threading.Lock()
         self._loop: Optional[asyncio.AbstractEventLoop] = None
 
-        # Most-recent state — sent to newly connecting clients immediately.
         self._last_payload: dict = {
             "fen": chess.Board().fen(),
             "turn": "white",
@@ -112,16 +121,16 @@ class GameBroadcaster:
             "last_move_uci": None,
             "message": "Waiting for game to start…",
             "move_number": 1,
+            "game_elapsed_seconds": 0,
+            "white_time_seconds": 0,
+            "black_time_seconds": 0,
+            "move_history_list": [],
         }
 
-    # --- called from the FastAPI / asyncio thread ---
-
     def set_loop(self, loop: asyncio.AbstractEventLoop) -> None:
-        """Register the running event loop so push_state can schedule on it."""
         self._loop = loop
 
     async def connect(self, queue: asyncio.Queue) -> dict:
-        """Register a new WebSocket client queue; return the current snapshot."""
         with self._lock:
             self._clients.add(queue)
         return self._last_payload
@@ -138,9 +147,7 @@ class GameBroadcaster:
             try:
                 q.put_nowait(payload)
             except asyncio.QueueFull:
-                pass  # slow client — drop frame, they'll catch up on reconnect
-
-    # --- called from the game-loop thread ---
+                pass
 
     def push_state(
         self,
@@ -150,19 +157,24 @@ class GameBroadcaster:
         elo: Optional[int],
         human_color: Optional[str],
         game_end_override=None,
+        start_time: Optional[float] = None,
+        white_time: float = 0.0,
+        black_time: float = 0.0,
     ) -> None:
         """Build and broadcast the current state. Safe to call from any thread."""
-        payload = build_payload(board, move_history, game_mode, elo,
-                                human_color, game_end_override)
+        payload = build_payload(
+            board, move_history, game_mode, elo, human_color,
+            game_end_override, start_time, white_time, black_time,
+        )
         self._last_payload = payload
 
         if self._loop is not None and self._loop.is_running():
-            self._loop.call_soon_threadsafe(
-                self._loop.create_task,
+            # run_coroutine_threadsafe is the correct way to schedule a
+            # coroutine from a non-async thread onto a running event loop.
+            asyncio.run_coroutine_threadsafe(
                 self._broadcast_async(payload),
+                self._loop,
             )
-        # If no loop yet (no clients connected), the snapshot is still saved
-        # and will be delivered to the next connecting client.
 
 
 _broadcaster: Optional[GameBroadcaster] = None
@@ -170,7 +182,6 @@ _broadcaster_lock = threading.Lock()
 
 
 def get_broadcaster() -> GameBroadcaster:
-    """Return the process-wide broadcaster singleton."""
     global _broadcaster
     if _broadcaster is None:
         with _broadcaster_lock:

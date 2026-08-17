@@ -23,9 +23,10 @@ def test_broadcast_payload_has_all_required_keys():
     required_keys = {
         "fen", "turn", "mode", "bot_elo", "human_color",
         "status", "last_move_san", "last_move_uci", "message", "move_number",
+        "game_elapsed_seconds", "white_time_seconds", "black_time_seconds", "move_history_list"
     }
     assert required_keys == set(payload.keys()), (
-        f"Missing keys: {required_keys - set(payload.keys())}"
+        f"Missing keys: {required_keys - set(payload.keys())}, Extra keys: {set(payload.keys()) - required_keys}"
     )
 
 
