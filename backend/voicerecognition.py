@@ -313,7 +313,7 @@ def test_whisper_accuracy(audio_file, prompt=None):
     global prompt_string
     global model
 
-    segments, info = model.transcribe(audio_file, language="en", vad_filter=False, beam_size=5, initial_prompt=prompt or prompt_string)
+    segments, info = model.transcribe(audio_file, language="en", vad_filter=True, beam_size=1, initial_prompt=prompt or prompt_string)
     transcribed_text = " ".join([segment.text for segment in segments]).strip()
 
     print(f"[Whisper] Result: \"{transcribed_text}\"")

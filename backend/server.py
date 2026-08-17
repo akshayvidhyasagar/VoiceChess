@@ -225,20 +225,34 @@ async def transcribe(audio: UploadFile = File(...)) -> dict:
         # Get the Whisper model (from voicerecognition if available, or load directly)
         model, prompt_string = _get_whisper_model()
 
-        # Save uploaded file to temporary WAV file
-        temp_fd, temp_path = tempfile.mkstemp(suffix=".wav")
+        # Browsers (Chrome/Safari) produce WebM/Opus via MediaRecorder, not real WAV.
+        # Detect the actual format from Content-Type and give the temp file the right
+        # extension so faster-whisper's ffmpeg demuxer picks the right container.
+        content_type = audio.content_type or "audio/webm"
+        if "wav" in content_type:
+            suffix = ".wav"
+        elif "mp4" in content_type or "m4a" in content_type:
+            suffix = ".mp4"
+        elif "ogg" in content_type:
+            suffix = ".ogg"
+        else:
+            suffix = ".webm"  # Default: Chrome/Edge/Safari all produce WebM
+
+        temp_fd, temp_path = tempfile.mkstemp(suffix=suffix)
         try:
             # Read the uploaded file and write to temp file
             contents = await audio.read()
             os.write(temp_fd, contents)
             os.close(temp_fd)
 
-            # Run Whisper transcription with the same parameters as voicerecognition.py
+            # Run Whisper transcription — vad_filter=True skips silence regions,
+            # beam_size=1 is 4x faster than beam_size=5 with minimal accuracy loss
+            # for short chess move commands.
             segments, info = model.transcribe(
                 temp_path,
                 language="en",
-                vad_filter=False,
-                beam_size=5,
+                vad_filter=True,
+                beam_size=1,
                 initial_prompt=prompt_string,
             )
 
