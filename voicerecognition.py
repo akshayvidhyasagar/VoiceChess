@@ -23,6 +23,8 @@ from pynput import keyboard as kb
 import contextlib
 import sys
 import subprocess
+from silence_detector import record_auto
+from speech_matching import match_mode_selection, match_self_test_response
 
 @contextlib.contextmanager
 def suppress_native_stderr():
@@ -270,14 +272,52 @@ except Exception:
     pass
 
 print(f"\nVoiceChess ready. {board.legal_moves.count()} legal opening moves.")
-run_test = input("Press Enter to test your mic & speaker setup first, or type 's' to skip: ").strip().lower()
-if run_test != "s":
-    test_move = input("Type a move to speak back (default e4): ").strip() or "e4"
-    asyncio.run(generate_chess_move_audio(test_move, "_selftest.wav"))
-    heard = test_whisper_accuracy("_selftest.wav", prompt_string)
-    print(f"Spoke: \"{test_move}\"  ->  Whisper heard: \"{heard}\"")
-    if os.path.exists("_selftest.wav"):
-        os.remove("_selftest.wav")
+
+
+def select_mode():
+    """Spoken prompt to choose between push-to-talk and fully-voice mode.
+    Runs before any keyboard-vs-voice branching, since the mode itself
+    hasn't been picked yet."""
+    speak("Say push to talk, or say fully voice.")
+    while True:
+        audio_file = record_auto()
+        text = test_whisper_accuracy(audio_file, "push to talk, fully voice, hands free, spacebar") if audio_file else ""
+        choice = match_mode_selection(text)
+        if choice:
+            return choice
+        speak("Sorry, I didn't catch that. Say push to talk, or say fully voice.")
+
+
+MODE = select_mode()
+print(f"Mode selected: {'Push-to-talk' if MODE == 'ptt' else 'Fully voice'}")
+
+if MODE == "ptt":
+    run_test = input("Press Enter to test your mic & speaker setup first, or type 's' to skip: ").strip().lower()
+    if run_test != "s":
+        test_move = input("Type a move to speak back (default e4): ").strip() or "e4"
+        asyncio.run(generate_chess_move_audio(test_move, "_selftest.wav"))
+        heard = test_whisper_accuracy("_selftest.wav", prompt_string)
+        print(f"Spoke: \"{test_move}\"  ->  Whisper heard: \"{heard}\"")
+        if os.path.exists("_selftest.wav"):
+            os.remove("_selftest.wav")
+else:
+    speak("Say test to check your mic, or say skip.")
+    while True:
+        audio_file = record_auto()
+        response_text = test_whisper_accuracy(audio_file, "test, skip") if audio_file else ""
+        choice = match_self_test_response(response_text)
+        if choice == "skip":
+            break
+        if choice == "test":
+            test_move = "e4"
+            asyncio.run(generate_chess_move_audio(test_move, "_selftest.wav"))
+            heard = test_whisper_accuracy("_selftest.wav", prompt_string)
+            print(f"Spoke: \"{test_move}\"  ->  Whisper heard: \"{heard}\"")
+            speak(f"I said {test_move} and heard back {heard}")
+            if os.path.exists("_selftest.wav"):
+                os.remove("_selftest.wav")
+            break
+        speak("Sorry, say test to check your mic, or say skip.")
 
 print("\nGame started. Hold SPACE to speak your move on your turn.")
 print("Say 'undo' to take back a move, 'resign' to forfeit, or 'draw' to end in a draw. Ctrl+C to quit.")
