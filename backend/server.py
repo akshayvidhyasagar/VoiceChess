@@ -125,6 +125,30 @@ async def setup(config: dict) -> dict:
     return {"status": "ok", "game_started": True}
 
 
+@app.post("/api/play-again")
+async def play_again(choice: dict) -> dict:
+    """Handle the end-of-game 'play again' choice.
+
+    If choice is 'yes': reset game_setup dict to allow new game configuration.
+    If choice is 'no': log the exit; frontend handles close.
+    """
+    global game_setup
+    user_choice = choice.get("choice")
+
+    if user_choice == "yes":
+        # Reset all config to None and ready to False so we loop back to setup
+        game_setup["input_mode"] = None
+        game_setup["game_mode"] = None
+        game_setup["elo"] = None
+        game_setup["human_color"] = None
+        game_setup["ready"] = False
+        print("[play-again] User chose to play again; game_setup reset")
+    elif user_choice == "no":
+        print("[play-again] User chose to exit")
+
+    return {"status": "ok"}
+
+
 @app.get("/state")
 async def current_state() -> dict:
     """Return the current game snapshot (useful for debugging / initial HTTP poll)."""
