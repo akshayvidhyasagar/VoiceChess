@@ -96,7 +96,7 @@ class StockfishBot:
                 "UCI_Elo": self.elo
             })
         except Exception:
-            # Fall back to Skill Level if UCI_LimitStrength/UCI_Elo are not supported.
+            # Fall back to Skill Level if UCI_LimitStrength/UCI_Elo are not supported or out of bounds.
             # Stockfish Skill Level ranges from 0 (e.g. ~800 Elo) to 20 (max/3000+ Elo).
             # We map ELO linearly: Skill = (elo - 800) / 100
             skill_level = max(0, min(20, int((self.elo - 800) / 100)))

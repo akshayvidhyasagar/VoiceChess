@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { AudioRecorder } from "./AudioRecorder";
 
 interface SetupWizardProps {
   onComplete: (config: SetupConfig) => void;
@@ -48,6 +49,66 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
         elo: gameMode === "single" ? elo : undefined,
         human_color: humanColor,
       });
+    }
+  };
+
+  // Voice transcription handler
+  const handleVoiceInput = (transcript: string) => {
+    const text = transcript.toLowerCase().trim();
+
+    // Step 1: Input Mode Selection
+    if (step === 1) {
+      if (text.includes("voice") || text.includes("fully")) {
+        setInputMode("voice");
+        setTimeout(() => setStep(2), 500);
+      } else if (text.includes("push") || text.includes("spacebar") || text.includes("talk")) {
+        setInputMode("ptt");
+        setTimeout(() => setStep(2), 500);
+      }
+    }
+
+    // Step 2: Game Mode Selection
+    else if (step === 2) {
+      if (text.includes("computer") || text.includes("single") || text.includes("stockfish")) {
+        setGameMode("single");
+        setTimeout(() => setStep(3), 500);
+      } else if (text.includes("double") || text.includes("human") || text.includes("two")) {
+        setGameMode("double");
+        setTimeout(() => setStep(4), 500);
+      }
+    }
+
+    // Step 3: Difficulty/Color Selection
+    else if (step === 3) {
+      // Check for difficulty (ELO)
+      if (text.includes("beginner") || text.includes("easy")) {
+        setElo(1000);
+      } else if (text.includes("intermediate") || text.includes("medium")) {
+        setElo(1600);
+      } else if (text.includes("advanced") || text.includes("hard")) {
+        setElo(2000);
+      } else if (text.includes("master") || text.includes("expert")) {
+        setElo(2600);
+      }
+
+      // Check for color
+      if (text.includes("white")) {
+        setHumanColor("white");
+        setTimeout(() => setStep(4), 500);
+      } else if (text.includes("black")) {
+        setHumanColor("black");
+        setTimeout(() => setStep(4), 500);
+      } else if (text.includes("random") || text.includes("either") || text.includes("any")) {
+        setHumanColor("random");
+        setTimeout(() => setStep(4), 500);
+      }
+    }
+
+    // Step 4: Auto-start if hearing "start" or "play"
+    else if (step === 4) {
+      if (text.includes("start") || text.includes("play") || text.includes("yes")) {
+        handleStartGame();
+      }
     }
   };
 
@@ -209,6 +270,15 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
             </div>
           </div>
         )}
+
+        {/* Audio Recorder for voice input */}
+        <div className="mt-6 mb-4">
+          <AudioRecorder
+            mode="voice"
+            onTranscript={handleVoiceInput}
+            onError={() => {}}
+          />
+        </div>
 
         {/* Navigation Buttons */}
         <div className="flex gap-3 mt-8">

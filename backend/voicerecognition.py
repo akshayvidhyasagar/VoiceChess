@@ -370,56 +370,9 @@ except Exception:
 print(f"\nVoiceChess ready. {board.legal_moves.count()} legal opening moves.")
 
 
-def select_mode():
-    """Spoken prompt to choose between push-to-talk and fully-voice mode.
-    Runs before any keyboard-vs-voice branching, since the mode itself
-    hasn't been picked yet."""
-    speak("Say push to talk, or say fully voice.")
-    while True:
-        audio_file = record_auto()
-        text = test_whisper_accuracy(audio_file, "push to talk, fully voice, hands free, spacebar") if audio_file else ""
-        choice = match_mode_selection(text)
-        if choice:
-            return choice
-        speak("Sorry, I didn't catch that. Say push to talk, or say fully voice.")
-
 
 _SKIP_GAME_LOOP = os.getenv("PYTEST_CURRENT_TEST") is not None
-
-if _SKIP_GAME_LOOP:
-    # During tests, skip the game loop setup
-    MODE = "ptt"
-else:
-    MODE = select_mode()
-    print(f"Mode selected: {'Push-to-talk' if MODE == 'ptt' else 'Fully voice'}")
-
-if MODE == "ptt" and not _SKIP_GAME_LOOP:
-    run_test = input("Press Enter to test your mic & speaker setup first, or type 's' to skip: ").strip().lower()
-    if run_test != "s":
-        test_move = input("Type a move to speak back (default e4): ").strip() or "e4"
-        asyncio.run(generate_chess_move_audio(test_move, "_selftest.wav"))
-        heard = test_whisper_accuracy("_selftest.wav", prompt_string)
-        print(f"Spoke: \"{test_move}\"  ->  Whisper heard: \"{heard}\"")
-        if os.path.exists("_selftest.wav"):
-            os.remove("_selftest.wav")
-else:
-    speak("Say test to check your mic, or say skip.")
-    while True:
-        audio_file = record_auto()
-        response_text = test_whisper_accuracy(audio_file, "test, skip") if audio_file else ""
-        choice = match_self_test_response(response_text)
-        if choice == "skip":
-            break
-        if choice == "test":
-            test_move = "e4"
-            asyncio.run(generate_chess_move_audio(test_move, "_selftest.wav"))
-            heard = test_whisper_accuracy("_selftest.wav", prompt_string)
-            print(f"Spoke: \"{test_move}\"  ->  Whisper heard: \"{heard}\"")
-            speak(f"I said {test_move} and heard back {heard}")
-            if os.path.exists("_selftest.wav"):
-                os.remove("_selftest.wav")
-            break
-        speak("Sorry, say test to check your mic, or say skip.")
+MODE = None
 
 
 def choose_game_mode():
