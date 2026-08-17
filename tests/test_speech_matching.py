@@ -16,3 +16,8 @@ def test_match_mode_selection_fully_voice():
 def test_match_mode_selection_unrecognized():
     assert match_mode_selection("banana") is None
     assert match_mode_selection("") is None
+
+
+def test_match_mode_selection_case_insensitive():
+    assert match_mode_selection("PUSH TO TALK") == "ptt"
+    assert match_mode_selection("Voice") == "voice"

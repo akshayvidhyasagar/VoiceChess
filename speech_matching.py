@@ -6,11 +6,19 @@ unit-testable without a microphone or the Whisper model.
 
 
 def _normalize(text):
+    """Normalize text: convert to lowercase and replace non-alphanumeric chars with spaces."""
     return "".join(c if c.isalnum() or c.isspace() else " " for c in text.lower())
 
 
 def match_mode_selection(text):
-    """Returns "ptt", "voice", or None."""
+    """Parse spoken input to detect input mode preference.
+
+    Args:
+        text: Transcribed speech as a string.
+
+    Returns:
+        "ptt" for push-to-talk mode, "voice" for hands-free mode, or None if unrecognized.
+    """
     normalized = _normalize(text)
     if "push to talk" in normalized or "spacebar" in normalized or "space bar" in normalized:
         return "ptt"
