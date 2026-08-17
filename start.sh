@@ -52,7 +52,7 @@ trap cleanup INT TERM EXIT
 # ── Start backend ─────────────────────────────────────────────────────────────
 
 echo -e "\n${GREEN}▶ Backend${RESET}  →  http://localhost:8000  (WS: ws://localhost:8000/ws/game)"
-python3 "$REPO_ROOT/server.py" &
+python3 "$REPO_ROOT/backend/server.py" &
 BACKEND_PID=$!
 
 # Give the server a moment to bind before the frontend tries to connect
