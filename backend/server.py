@@ -118,6 +118,10 @@ async def setup(config: dict) -> dict:
     game_setup["human_color"] = config.get("human_color")
     game_setup["ready"] = True
 
+    print(f"[setup] Received config: input_mode={config.get('input_mode')}, "
+          f"game_mode={config.get('game_mode')}, elo={config.get('elo')}, "
+          f"human_color={config.get('human_color')}")
+
     return {"status": "ok", "game_started": True}
 
 
