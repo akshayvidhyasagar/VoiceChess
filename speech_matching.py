@@ -25,3 +25,14 @@ def match_mode_selection(text):
     if "voice" in normalized or "hands free" in normalized:
         return "voice"
     return None
+
+
+def match_self_test_response(text):
+    """Returns "test", "skip", or None. "skip" takes priority since a
+    sentence mentioning both ("skip the test") means skip."""
+    normalized = _normalize(text)
+    if "skip" in normalized:
+        return "skip"
+    if "test" in normalized:
+        return "test"
+    return None
