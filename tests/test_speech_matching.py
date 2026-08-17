@@ -1,4 +1,12 @@
-from speech_matching import match_mode_selection, match_self_test_response, match_confirm_response, detect_command
+from speech_matching import (
+    match_mode_selection,
+    match_self_test_response,
+    match_confirm_response,
+    detect_command,
+    match_game_mode,
+    parse_elo,
+    match_color_selection,
+)
 
 
 def test_match_mode_selection_push_to_talk():
@@ -52,3 +60,41 @@ def test_detect_command():
     assert detect_command("let's draw") == "draw"
     assert detect_command("pause game") == "pause"
     assert detect_command("knight to f3") is None
+
+
+def test_match_game_mode():
+    assert match_game_mode("single player") == "single"
+    assert match_game_mode("versus bot") == "single"
+    assert match_game_mode("play the computer") == "single"
+    assert match_game_mode("double player") == "double"
+    assert match_game_mode("two players") == "double"
+    assert match_game_mode("versus human") == "double"
+    assert match_game_mode("banana") is None
+    assert match_game_mode("") is None
+
+
+def test_parse_elo():
+    # Test presets
+    assert parse_elo("beginner") == 800
+    assert parse_elo("intermediate") == 1400
+    assert parse_elo("set to advanced") == 2000
+    assert parse_elo("master") == 2600
+    
+    # Test digits
+    assert parse_elo("1200") == 1200
+    assert parse_elo("play at 1800 elo") == 1800
+    assert parse_elo("rating 2500") == 2500
+    
+    # Unrecognized
+    assert parse_elo("play chess") is None
+    assert parse_elo("") is None
+
+
+def test_match_color_selection():
+    assert match_color_selection("white") == "white"
+    assert match_color_selection("I want black please") == "black"
+    assert match_color_selection("random color") == "random"
+    assert match_color_selection("any") == "random"
+    assert match_color_selection("banana") is None
+    assert match_color_selection("") is None
+

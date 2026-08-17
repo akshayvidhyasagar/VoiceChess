@@ -1,27 +1,45 @@
 # VoiceChess
 
-Play chess against yourself (or a friend, over the board) using nothing but your voice. Hold spacebar, say your move, and it gets transcribed, validated, and played on a text board — with spoken confirmation read back to you.
+Play chess against yourself, a friend, or a **Stockfish AI opponent** using nothing but your voice. Hold spacebar, say your move, and it gets transcribed, validated, and played on a text board — with spoken confirmation read back to you.
 
 ## How it works
 
-1. **Two input modes**, chosen by voice at startup:
+1. **Game mode**, chosen by voice at startup:
+   - **Human vs Human**: two players take turns speaking moves on the same machine.
+   - **Human vs Computer**: you play against a local [Stockfish](https://stockfishchess.org/) engine at an adjustable ELO rating.
+2. **Two input modes**, chosen by voice:
    - **Push-to-talk**: hold the spacebar to record, release to stop (via `pynput`, no fixed time limit), then press Enter to confirm.
    - **Fully voice**: no keyboard at all. Recording starts and stops automatically via silence detection, and you confirm or redo a heard move by saying "confirm" or "repeat".
-2. **Speech-to-text**: [faster-whisper](https://github.com/SYSTRAN/faster-whisper) transcribes what you said, primed with a vocabulary hint that's rebuilt every turn from the actual legal moves on the board (better accuracy as the game narrows down).
-3. **Parsing**: the transcript ("knight to f3", "e4", "castle kingside") is converted into standard algebraic notation and validated with [python-chess](https://python-chess.readthedocs.io/).
-4. **Confirmation**: before a move is committed, you're asked to confirm what was heard — say the wrong thing and it just re-records instead of silently pushing a bad move.
-5. **Spoken feedback**: [edge-tts](https://github.com/rany2/edge-tts) + `afplay` announce each move and the final result out loud.
+3. **Speech-to-text**: [faster-whisper](https://github.com/SYSTRAN/faster-whisper) transcribes what you said, primed with a vocabulary hint that's rebuilt every turn from the actual legal moves on the board (better accuracy as the game narrows down).
+4. **Parsing**: the transcript ("knight to f3", "e4", "castle kingside") is converted into standard algebraic notation and validated with [python-chess](https://python-chess.readthedocs.io/).
+5. **Confirmation**: before a move is committed, you're asked to confirm what was heard — say the wrong thing and it just re-records instead of silently pushing a bad move.
+6. **Spoken feedback**: [edge-tts](https://github.com/rany2/edge-tts) + `afplay` announce each move and the final result out loud.
 
 ## Requirements
 
 - macOS (uses `afplay` for audio playback, and the push-to-talk listener needs macOS's Input Monitoring permission)
 - Python 3.9+
 - A microphone
+- [Stockfish](https://stockfishchess.org/) (for Human vs Computer mode)
 
 ## Setup
 
 ```bash
 pip install -r requirements.txt
+```
+
+**Install Stockfish** (required for vs-computer mode):
+
+```bash
+brew install stockfish        # macOS via Homebrew (recommended)
+# or download from https://stockfishchess.org/download/
+```
+
+By default, VoiceChess auto-detects Stockfish from your `PATH`. If you installed it to a custom location, set the `STOCKFISH_PATH` environment variable:
+
+```bash
+export STOCKFISH_PATH=/path/to/stockfish
+python3 voicerecognition.py
 ```
 
 On first run, macOS will need **Input Monitoring** access granted to your terminal app so the spacebar can be detected globally (System Settings → Privacy & Security → Input Monitoring).
@@ -32,12 +50,29 @@ On first run, macOS will need **Input Monitoring** access granted to your termin
 python3 voicerecognition.py
 ```
 
-You'll be offered a one-time mic/speaker self-test, then the game begins. Controls during play:
+At startup you will be guided by voice through:
+1. **Game mode** — say "human" / "human vs human" or "computer" / "play computer"
+2. *(vs Computer only)* **Difficulty** — say a level name or an ELO number (see table below)
+3. *(vs Computer only)* **Your colour** — say "white" or "black"
+4. **Input mode** — say "push to talk" or "fully voice"
 
-- At startup, say **"push to talk"** or **"fully voice"** to pick your mode.
+## ELO / Difficulty presets (vs Computer)
+
+| You say | ELO | Strength |
+|---|---|---|
+| "beginner" | 800 | Very easy — makes many blunders |
+| "easy" | 1000 | Casual club level |
+| "medium" / "intermediate" | 1500 | Solid amateur |
+| "hard" | 2000 | Strong club player |
+| "expert" | 2500 | Near master level |
+| "maximum" / "max" | 3000 | Full Stockfish strength |
+| *(number)* e.g. "1200" | 1200 | Any value 800–3000 |
+
+## Controls during play
+
 - **Push-to-talk mode**: hold SPACE to speak your move, release when done, then press Enter to confirm. Say or type **"undo"**/**"resign"**/**"draw"**. After 3 failed recognition attempts in a row, it falls back to typing the move directly.
 - **Fully voice mode**: no keyboard needed. Speak your move when prompted, then say **"confirm"** or **"repeat"**. Say **"undo"**, **"resign"**, **"draw"**, or **"pause"** (then **"resume"** to continue) at any time.
-- **Ctrl+C** to quit — the game is saved as a `.pgn` file either way
+- **Ctrl+C** to quit — the game is saved as a `.pgn` file either way.
 
 ## Requirements (dev)
 

@@ -76,3 +76,74 @@ def detect_command(text):
     if "pause" in normalized:
         return "pause"
     return None
+
+
+def match_game_mode(text):
+    """Parse spoken input to select the game mode.
+
+    Args:
+        text: Transcribed speech as a string.
+
+    Returns:
+        "single" for single player mode, "double" for double player mode, or None if unrecognized.
+    """
+    normalized = _normalize(text)
+    single_words = ("single", "one player", "vs bot", "versus bot", "computer", "bot", "stockfish", "solo")
+    double_words = ("double", "two player", "two players", "versus human", "vs human", "multiplayer", "local")
+
+    if any(word in normalized for word in single_words):
+        return "single"
+    if any(word in normalized for word in double_words):
+        return "double"
+    return None
+
+
+def parse_elo(text):
+    """Parse spoken input for Stockfish ELO strength rating or preset.
+
+    Args:
+        text: Transcribed speech as a string.
+
+    Returns:
+        An integer ELO rating, or None if unrecognized.
+    """
+    import re
+    normalized = _normalize(text)
+
+    # Check for presets
+    presets = {
+        "beginner": 800,
+        "intermediate": 1400,
+        "advanced": 2000,
+        "master": 2600
+    }
+    for word, rating in presets.items():
+        if word in normalized:
+            return rating
+
+    # Check for digits
+    numbers = re.findall(r"\d+", normalized)
+    if numbers:
+        return int(numbers[0])
+
+    return None
+
+
+def match_color_selection(text):
+    """Parse spoken input to select the user's color.
+
+    Args:
+        text: Transcribed speech as a string.
+
+    Returns:
+        "white", "black", "random", or None if unrecognized.
+    """
+    normalized = _normalize(text)
+    if "white" in normalized:
+        return "white"
+    if "black" in normalized:
+        return "black"
+    if "random" in normalized or "either" in normalized or "any" in normalized:
+        return "random"
+    return None
+
