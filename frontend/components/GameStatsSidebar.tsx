@@ -39,7 +39,7 @@ export function GameStatsSidebar({ state }: GameStatsSidebarProps) {
       {/* Title */}
       <div>
         <h2 className="text-lg font-bold text-zinc-100 flex items-center gap-2">
-          📊 Game Stats & History
+          Game Stats & History
         </h2>
         <div className="h-px bg-zinc-700 my-2" />
       </div>

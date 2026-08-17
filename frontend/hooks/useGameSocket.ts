@@ -35,6 +35,9 @@ export interface GameState {
   white_time_seconds?: number;
   black_time_seconds?: number;
   move_history_list?: string[];
+  input_mode?: "ptt" | "voice" | null;
+  mic_status?: "idle" | "listening" | "processing";
+  last_transcript?: string | null;
 }
 
 export type ConnectionStatus = "connecting" | "connected" | "disconnected";
@@ -57,6 +60,9 @@ const DEFAULT_STATE: GameState = {
   white_time_seconds: 0,
   black_time_seconds: 0,
   move_history_list: [],
+  input_mode: null,
+  mic_status: "idle",
+  last_transcript: null,
 };
 
 // ---------------------------------------------------------------------------

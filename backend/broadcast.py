@@ -1,11 +1,11 @@
 """broadcast.py — Thread-safe game-state broadcaster.
 
 The voice/game loop runs in a background thread; the FastAPI server runs
-the asyncio event loop on the main thread.  This module bridges them:
+the asyncio event loop on the main thread. This module bridges them:
 
   - The game thread calls ``push_state(...)`` (synchronous).
-  - ``push_state`` uses ``asyncio.run_coroutine_threadsafe`` (the correct,
-    standard way) to schedule the broadcast coroutine on the FastAPI loop.
+  - ``push_state`` uses ``asyncio.run_coroutine_threadsafe`` to schedule
+    the broadcast coroutine on the FastAPI loop.
 
 No imports from voicerecognition.py here — the dependency is one-way.
 """
@@ -50,6 +50,9 @@ def build_payload(
     start_time: Optional[float] = None,
     white_time: float = 0.0,
     black_time: float = 0.0,
+    input_mode: Optional[str] = None,
+    mic_status: str = "idle",
+    last_transcript: Optional[str] = None,
 ) -> dict:
     """Return a JSON-serialisable dict representing the current game state."""
     last_san = move_history[-1] if move_history else None
@@ -95,6 +98,10 @@ def build_payload(
         "black_time_seconds": round(black_time),
         # Full move list for sidebar
         "move_history_list": list(move_history),
+        # Voice UI and transcript tracking
+        "input_mode": input_mode,
+        "mic_status": mic_status,
+        "last_transcript": last_transcript,
     }
 
 
@@ -125,6 +132,9 @@ class GameBroadcaster:
             "white_time_seconds": 0,
             "black_time_seconds": 0,
             "move_history_list": [],
+            "input_mode": None,
+            "mic_status": "idle",
+            "last_transcript": None,
         }
 
     def set_loop(self, loop: asyncio.AbstractEventLoop) -> None:
@@ -160,17 +170,19 @@ class GameBroadcaster:
         start_time: Optional[float] = None,
         white_time: float = 0.0,
         black_time: float = 0.0,
+        input_mode: Optional[str] = None,
+        mic_status: str = "idle",
+        last_transcript: Optional[str] = None,
     ) -> None:
         """Build and broadcast the current state. Safe to call from any thread."""
         payload = build_payload(
             board, move_history, game_mode, elo, human_color,
             game_end_override, start_time, white_time, black_time,
+            input_mode, mic_status, last_transcript
         )
         self._last_payload = payload
 
         if self._loop is not None and self._loop.is_running():
-            # run_coroutine_threadsafe is the correct way to schedule a
-            # coroutine from a non-async thread onto a running event loop.
             asyncio.run_coroutine_threadsafe(
                 self._broadcast_async(payload),
                 self._loop,

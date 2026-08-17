@@ -26,11 +26,11 @@ function ConnectionDot({ status }: { status: ConnectionStatus }) {
     status === "connected"
       ? "Live"
       : status === "connecting"
-      ? "Connecting…"
+      ? "Connecting..."
       : "Disconnected";
 
   return (
-    <span className="flex items-center gap-1.5 text-xs font-medium text-zinc-400">
+    <span className="flex items-center gap-1.5 text-xs font-semibold text-zinc-400 uppercase tracking-wider">
       <span className={`inline-block w-2 h-2 rounded-full ${colorClass}`} />
       {label}
     </span>
@@ -41,7 +41,7 @@ function ModeBadge({ mode }: { mode: GameMode }) {
   if (!mode) return null;
   const label = mode === "single" ? "vs Computer" : "Human vs Human";
   return (
-    <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold bg-zinc-700 text-zinc-200">
+    <span className="rounded bg-zinc-700 px-2 py-0.5 text-xs font-semibold text-zinc-200 uppercase tracking-wider">
       {label}
     </span>
   );
@@ -50,7 +50,7 @@ function ModeBadge({ mode }: { mode: GameMode }) {
 function EloBadge({ elo }: { elo: number | null }) {
   if (elo === null) return null;
   return (
-    <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold bg-teal-900 text-teal-300 border border-teal-700">
+    <span className="rounded bg-teal-950 px-2 py-0.5 text-xs font-semibold text-teal-300 border border-teal-800 uppercase tracking-wider">
       ELO {elo}
     </span>
   );
@@ -60,8 +60,8 @@ function StatusBanner({ status, message }: { status: GameStatus; message: string
   const isOver = ["checkmate", "stalemate", "draw", "resigned"].includes(status);
   return (
     <p
-      className={`text-sm font-medium text-center ${
-        isOver ? "text-amber-300" : "text-zinc-100"
+      className={`text-sm font-semibold tracking-tight text-center ${
+        isOver ? "text-amber-400" : "text-zinc-100"
       }`}
     >
       {message}
@@ -72,13 +72,13 @@ function StatusBanner({ status, message }: { status: GameStatus; message: string
 function TurnIndicator({ turn, status }: { turn: "white" | "black"; status: GameStatus }) {
   if (!["in_progress"].includes(status)) return null;
   return (
-    <div className="flex items-center gap-2 text-xs text-zinc-400">
+    <div className="flex items-center gap-2 text-xs font-semibold text-zinc-400 uppercase tracking-wider">
       <span
-        className={`inline-block w-3 h-3 rounded-full border border-zinc-500 ${
+        className={`inline-block w-2.5 h-2.5 rounded-full border border-zinc-500 ${
           turn === "white" ? "bg-zinc-100" : "bg-zinc-900"
         }`}
       />
-      <span className="capitalize">{turn} to move</span>
+      <span>{turn} to move</span>
     </div>
   );
 }
@@ -86,8 +86,8 @@ function TurnIndicator({ turn, status }: { turn: "white" | "black"; status: Game
 function LastMove({ san }: { san: string | null }) {
   if (!san) return null;
   return (
-    <span className="text-xs text-zinc-500 font-mono">
-      Last: <span className="text-zinc-300">{san}</span>
+    <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+      Last Move: <span className="text-zinc-300 font-mono font-bold lowercase normal-case">{san}</span>
     </span>
   );
 }
@@ -100,7 +100,7 @@ export function StatusBar({ state, connectionStatus }: StatusBarProps) {
   const { status, message, turn, mode, bot_elo, last_move_san, move_number } = state;
 
   return (
-    <div className="w-full max-w-[560px] mx-auto mb-3 rounded-xl bg-zinc-800/70 border border-zinc-700 backdrop-blur px-4 py-3 flex flex-col gap-2">
+    <div className="w-full max-w-[560px] mx-auto rounded-xl bg-zinc-800/80 border border-zinc-700 backdrop-blur px-4 py-3 flex flex-col gap-3 shadow-xl">
       {/* Top row: connection + badges */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <ConnectionDot status={connectionStatus} />
@@ -114,12 +114,12 @@ export function StatusBar({ state, connectionStatus }: StatusBarProps) {
       <StatusBanner status={status} message={message} />
 
       {/* Bottom row: turn indicator + last move + move number */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-zinc-750">
         <TurnIndicator turn={turn} status={status} />
         <div className="flex items-center gap-3">
           <LastMove san={last_move_san} />
           {status === "in_progress" && (
-            <span className="text-xs text-zinc-600">Move {move_number}</span>
+            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Move {move_number}</span>
           )}
         </div>
       </div>

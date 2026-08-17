@@ -79,6 +79,17 @@ def record_auto(sampleRate=16000, filename="recording_auto.wav"):
     stops after a period of silence following that speech. Returns the
     filename, or None if no speech was detected before timing out.
     """
+    # Lazily fetch game context broadcaster if enabled
+    try:
+        from voicerecognition import _game_context, _broadcast_state
+        broadcaster_integration = True
+    except ImportError:
+        broadcaster_integration = False
+
+    if broadcaster_integration:
+        _game_context["mic_status"] = "listening"
+        _broadcast_state()
+
     chunks = []
     calibration_rms = []
     calibration_chunks_needed = 3  # ~0.3s of ambient noise sampled at stream start
@@ -107,7 +118,14 @@ def record_auto(sampleRate=16000, filename="recording_auto.wav"):
             sd.sleep(int(DEFAULT_CHUNK_DURATION * 1000))
     print(f"[Mic] Stopped ({state['result']}).")
 
+    if broadcaster_integration:
+        _game_context["mic_status"] = "processing"
+        _broadcast_state()
+
     if state["result"] == "stop_timeout" or not chunks:
+        if broadcaster_integration:
+            _game_context["mic_status"] = "idle"
+            _broadcast_state()
         return None
 
     audio = np.concatenate(chunks, axis=0).flatten()

@@ -98,7 +98,7 @@ def build_prompt():
 
 move_history = []
 
-# Game-session context — includes timing for the sidebar
+# Game-session context — includes timing and voice panel properties
 _game_context = {
     "mode": None,
     "elo": None,
@@ -108,6 +108,8 @@ _game_context = {
     "move_start_time": None, # float: time.time() when current turn began
     "white_time": 0.0,       # cumulative seconds white has spent on moves
     "black_time": 0.0,       # cumulative seconds black has spent on moves
+    "mic_status": "idle",    # "idle" | "listening" | "processing"
+    "last_transcript": None, # last heard speech segment
 }
 
 
@@ -117,6 +119,14 @@ def _broadcast_state() -> None:
     if not _BROADCAST_ENABLED:
         return
     try:
+        # Determine global MODE (ptt vs voice) to broadcast as input_mode
+        # If MODE is not yet set at top-level execution, use None.
+        input_mode = None
+        try:
+            input_mode = MODE
+        except NameError:
+            pass
+
         _get_broadcaster().push_state(
             board,
             move_history,
@@ -127,6 +137,9 @@ def _broadcast_state() -> None:
             start_time=_game_context["start_time"],
             white_time=_game_context["white_time"],
             black_time=_game_context["black_time"],
+            input_mode=input_mode,
+            mic_status=_game_context["mic_status"],
+            last_transcript=_game_context["last_transcript"],
         )
     except Exception:
         pass  # UI is optional; never let it affect the game
@@ -238,8 +251,10 @@ def record(sampleRate=16000, filename="recording.wav", max_duration=20):
     """
     Push-to-talk: hold SPACE to record, release to stop.
     Returns the filename, or None if nothing was recorded
-    (e.g. the key was tapped instantly, or listener permission is missing).
     """
+    _game_context["mic_status"] = "listening"
+    _broadcast_state()
+
     chunks = []
     state = {"active": False, "started": False}
 
@@ -271,13 +286,20 @@ def record(sampleRate=16000, filename="recording.wav", max_duration=20):
             state["active"] = False
             listener.stop()
 
+    _game_context["mic_status"] = "processing"
+    _broadcast_state()
+
     if not state["started"]:
         print("[Mic] No SPACE press detected. If this keeps happening, grant your terminal app")
         print("      'Input Monitoring' access in System Settings > Privacy & Security, then restart it.")
+        _game_context["mic_status"] = "idle"
+        _broadcast_state()
         return None
 
     if not chunks:
         print("[Mic] Recording was empty (released too fast).")
+        _game_context["mic_status"] = "idle"
+        _broadcast_state()
         return None
 
     audio = np.concatenate(chunks, axis=0).flatten()
@@ -295,6 +317,11 @@ def test_whisper_accuracy(audio_file, prompt=None):
     transcribed_text = " ".join([segment.text for segment in segments]).strip()
 
     print(f"[Whisper] Result: \"{transcribed_text}\"")
+    
+    # Save transcript and reset mic state
+    _game_context["last_transcript"] = transcribed_text
+    _game_context["mic_status"] = "idle"
+    _broadcast_state()
     return transcribed_text
 
 def WordsToMove(Move):
