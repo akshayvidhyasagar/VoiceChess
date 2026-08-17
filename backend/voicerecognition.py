@@ -812,22 +812,58 @@ def play_game(game_mode, elo=1600, human_color="white"):
             speak(f"Game over. {winner} wins.")
 
 
+def web_wait_for_setup():
+    """Wait for frontend to populate game_setup dict via /api/setup.
+
+    Polls the shared game_setup dict until ready=True, then reads all values
+    in one atomic operation and resets ready for the next game cycle.
+
+    Returns: (input_mode, game_mode, elo, human_color) tuple
+    """
+    # Import here to avoid circular dependency
+    try:
+        from server import game_setup
+    except ImportError:
+        print("[ERROR] Cannot import game_setup from server.py")
+        raise
+
+    print("[Setup] Waiting for frontend wizard to complete...")
+    while not game_setup["ready"]:
+        time.sleep(0.5)
+
+    # Read all values once, atomically
+    result = (
+        game_setup["input_mode"],
+        game_setup["game_mode"],
+        game_setup["elo"],
+        game_setup["human_color"],
+    )
+
+    # Reset for next game
+    game_setup["ready"] = False
+
+    print(f"[Setup] Received: input_mode={result[0]}, game_mode={result[1]}, "
+          f"elo={result[2]}, human_color={result[3]}")
+
+    return result
+
+
 try:
     while True:
-        game_mode = choose_game_mode()
+        # Get setup configuration from browser wizard via /api/setup
+        input_mode, game_mode, elo, human_color = web_wait_for_setup()
+
+        # Set global MODE for the game loop to use
+        MODE = input_mode
+
         if game_mode == "single":
-            elo = choose_elo()
             speak(f"Starting a game against Stockfish rated {elo}.")
             print(f"Starting a game against Stockfish rated {elo}.")
-            human_color = choose_color()
             play_game(game_mode, elo=elo, human_color=human_color)
         else:
-            play_game(game_mode)
-        
-        if not ask_play_again():
-            speak("Thank you for playing VoiceChess. Goodbye!")
-            print("Goodbye!")
-            break
+            play_game(game_mode, human_color=human_color)
+
+        # Loop back to waiting for next game setup
 except SystemExit:
     pass
 except KeyboardInterrupt:
