@@ -52,7 +52,7 @@ export function AudioRecorder({ mode, onTranscript, onError }: AudioRecorderProp
       const formData = new FormData();
       formData.append("audio", blob, "audio.wav");
 
-      const response = await fetch("/api/transcribe", {
+      const response = await fetch("http://localhost:8000/api/transcribe", {
         method: "POST",
         body: formData,
       });

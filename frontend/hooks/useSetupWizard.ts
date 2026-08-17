@@ -18,7 +18,7 @@ export function useSetupWizard() {
     setError(null);
 
     try {
-      const response = await fetch("/api/setup", {
+      const response = await fetch("http://localhost:8000/api/setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config),
@@ -38,7 +38,7 @@ export function useSetupWizard() {
   const resetSetup = async () => {
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/play-again", {
+      const response = await fetch("http://localhost:8000/api/play-again", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ play_again: "yes" }),

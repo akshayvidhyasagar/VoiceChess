@@ -167,28 +167,23 @@ _prompt_string = (
 def _get_whisper_model():
     """Get the Whisper model, loading it if necessary.
 
-    First tries to use the model from the voicerecognition module
-    (loaded by game loop thread). Falls back to loading directly.
+    Safe retrieval of the model from loaded voicerecognition or direct lazy-load.
     """
     global _whisper_model
 
     if _whisper_model is not None:
         return _whisper_model, _prompt_string
 
-    # Try to get the model from the voicerecognition module (if it's been imported)
-    try:
-        import voicerecognition
-        return voicerecognition.model, voicerecognition.prompt_string
-    except (ImportError, AttributeError):
-        # voicerecognition not available yet; load the model directly
-        # (This path is used in tests and during early server startup)
-        pass
+    # Check if voicerecognition is already imported in sys.modules to avoid circular/side-effect importing hangs
+    import sys
+    if "voicerecognition" in sys.modules:
+        vr = sys.modules["voicerecognition"]
+        if hasattr(vr, "model") and vr.model is not None:
+            return vr.model, getattr(vr, "prompt_string", _prompt_string)
 
-    # Load the Whisper model directly if not already loaded
-    if _whisper_model is None:
-        from faster_whisper import WhisperModel
-        _whisper_model = WhisperModel("small", device="cpu", compute_type="int8")
-
+    # Otherwise, initialize a dedicated instance for server transcribe endpoint
+    from faster_whisper import WhisperModel
+    _whisper_model = WhisperModel("small", device="cpu", compute_type="int8")
     return _whisper_model, _prompt_string
 
 
