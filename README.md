@@ -92,3 +92,76 @@ To run the unit test suite: `pip install -r requirements-dev.txt`, then `python3
 ## Output
 
 Each game is saved as a timestamped `game_YYYYMMDD_HHMMSS.pgn` file in the project directory when it ends or is quit.
+
+---
+
+## Web UI (live board display)
+
+A **Next.js frontend** connects to a **FastAPI WebSocket server** and shows the live board as moves are made by voice. The board is read-only — voice remains the only way to move pieces.
+
+### Architecture
+
+```
+voicerecognition.py  ──push_state()──►  broadcast.py  ──WebSocket──►  Next.js frontend
+  (voice/game loop)                      (broadcaster)                 (display only)
+```
+
+### Running the FastAPI server
+
+```bash
+# Install server dependencies (one-time)
+pip install -r requirements-server.txt
+
+# Start the server (also starts the voice game loop in a background thread)
+python server.py
+```
+
+The server listens on `http://localhost:8000`. Useful endpoints:
+- `GET /health` — liveness check
+- `GET /state` — current game snapshot (JSON)
+- `WebSocket /ws/game` — live updates; connects immediately and pushes on every move
+
+### Running the Next.js frontend
+
+```bash
+cd frontend
+npm install         # one-time
+npm run dev         # starts at http://localhost:3000
+```
+
+Open `http://localhost:3000` in a browser. The board will show "Waiting for game to start…" until the first voice game begins, then update in real-time.
+
+### How they connect
+
+The frontend reads the backend URL from the `NEXT_PUBLIC_WS_URL` environment variable:
+
+| Environment | Value |
+|---|---|
+| Local dev (default) | `ws://localhost:8000/ws/game` |
+| Production (Vercel → Render) | `wss://your-api.onrender.com/ws/game` |
+
+For local dev this is pre-configured in `frontend/.env.local`. No changes needed.
+
+### Deployment (Vercel + Render)
+
+**Backend (Render):**
+1. Create a new **Web Service** pointing to this repo.
+2. Build command: `pip install -r requirements.txt -r requirements-server.txt`
+3. Start command: `python server.py`
+4. Set environment variables:
+   - `ALLOWED_ORIGINS=https://your-app.vercel.app` (comma-separated if multiple)
+   - `PORT=8000` (Render sets this automatically)
+
+**Frontend (Vercel):**
+1. Import this repo into Vercel, set **Root Directory** to `frontend`.
+2. Set environment variable:
+   - `NEXT_PUBLIC_WS_URL=wss://your-api.onrender.com/ws/game`
+
+> **CORS note**: The FastAPI server reads `ALLOWED_ORIGINS` to set Access-Control headers. Add your Vercel domain (e.g. `https://voicechess.vercel.app`) to this variable on Render so the browser allows the WebSocket connection from a different origin.
+
+### Running frontend tests
+
+```bash
+cd frontend
+npm test
+```

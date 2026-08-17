@@ -1,0 +1,137 @@
+"""server.py — FastAPI WebSocket bridge for VoiceChess.
+
+Architecture
+------------
+* FastAPI runs the asyncio event loop on the MAIN thread (uvicorn).
+* The voice/game loop (voicerecognition.py) runs in a BACKGROUND thread
+  started here via ``threading.Thread``.
+* ``broadcast.py`` bridges them without either side importing the other.
+
+Run locally:
+    python server.py
+
+Or via uvicorn directly (for Render deployment):
+    uvicorn server:app --host 0.0.0.0 --port 8000
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import os
+import sys
+import threading
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+
+from broadcast import get_broadcaster
+
+# ---------------------------------------------------------------------------
+# App setup
+# ---------------------------------------------------------------------------
+
+app = FastAPI(title="VoiceChess API", version="1.0.0")
+
+# CORS — allow the Next.js dev server and the deployed Vercel frontend.
+# Set ALLOWED_ORIGINS env var to a comma-separated list for production.
+_raw_origins = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:3000,http://localhost:3001",
+)
+ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ---------------------------------------------------------------------------
+# Lifecycle — register the running event loop with the broadcaster
+# ---------------------------------------------------------------------------
+
+@app.on_event("startup")
+async def on_startup() -> None:
+    loop = asyncio.get_running_loop()
+    get_broadcaster().set_loop(loop)
+    # Start the game loop in a daemon background thread so it doesn't
+    # block the server from shutting down cleanly.
+    t = threading.Thread(target=_run_game_loop, daemon=True, name="game-loop")
+    t.start()
+
+
+def _run_game_loop() -> None:
+    """Import and run voicerecognition.py inside the background thread.
+
+    Importing the module runs the top-level game loop (it's a script).
+    We catch SystemExit so a 'quit' command doesn't kill the server.
+    """
+    try:
+        # Add the repo root to sys.path so the import resolves correctly
+        # regardless of cwd.
+        repo_root = os.path.dirname(os.path.abspath(__file__))
+        if repo_root not in sys.path:
+            sys.path.insert(0, repo_root)
+        import voicerecognition  # noqa: F401 — side-effectful import
+    except SystemExit:
+        pass
+    except Exception as exc:
+        print(f"[server] Game loop exited with error: {exc}", file=sys.stderr)
+
+
+# ---------------------------------------------------------------------------
+# HTTP endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/health")
+async def health() -> dict:
+    return {"status": "ok"}
+
+
+@app.get("/state")
+async def current_state() -> dict:
+    """Return the current game snapshot (useful for debugging / initial HTTP poll)."""
+    return get_broadcaster()._last_payload
+
+
+# ---------------------------------------------------------------------------
+# WebSocket endpoint
+# ---------------------------------------------------------------------------
+
+@app.websocket("/ws/game")
+async def websocket_game(websocket: WebSocket) -> None:
+    await websocket.accept()
+
+    broadcaster = get_broadcaster()
+    queue: asyncio.Queue = asyncio.Queue(maxsize=32)
+
+    # Send the current snapshot immediately on connect.
+    snapshot = await broadcaster.connect(queue)
+    await websocket.send_text(json.dumps(snapshot))
+
+    try:
+        while True:
+            # Wait for a new state update pushed by the game loop.
+            payload = await queue.get()
+            await websocket.send_text(json.dumps(payload))
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        await broadcaster.disconnect(queue)
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    import uvicorn
+
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run("server:app", host="0.0.0.0", port=port, reload=False)

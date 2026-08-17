@@ -35,6 +35,14 @@ from speech_matching import (
 )
 from stockfish_engine import StockfishBot, find_stockfish
 
+# Broadcast hook — imported lazily so voicerecognition.py still works
+# standalone (without the server deps installed).
+try:
+    from broadcast import get_broadcaster as _get_broadcaster
+    _BROADCAST_ENABLED = True
+except ImportError:
+    _BROADCAST_ENABLED = False
+
 @contextlib.contextmanager
 def suppress_native_stderr():
     """Silences macOS's native 'This process is not trusted!' accessibility
@@ -89,6 +97,27 @@ def build_prompt():
     return ", ".join(curr_hints + LegalMoves())
 
 move_history = []
+
+# Game-session context shared with broadcast helper
+_game_context = {"mode": None, "elo": None, "human_color": None, "end_override": None}
+
+
+def _broadcast_state() -> None:
+    """Push current board state to all connected WebSocket clients.
+    Fire-and-forget: never raises, never blocks the game loop."""
+    if not _BROADCAST_ENABLED:
+        return
+    try:
+        _get_broadcaster().push_state(
+            board,
+            move_history,
+            _game_context["mode"],
+            _game_context["elo"],
+            _game_context["human_color"],
+            _game_context["end_override"],
+        )
+    except Exception:
+        pass  # UI is optional; never let it affect the game
 
 def tryMove(move):
     global board
@@ -495,6 +524,13 @@ def play_game(game_mode, elo=1600, human_color="white"):
     board = chess.Board()
     move_history = []
     game_end_override = None
+
+    # Update broadcast context for the new game
+    _game_context["mode"] = game_mode
+    _game_context["elo"] = elo if game_mode == "single" else None
+    _game_context["human_color"] = human_color if game_mode == "single" else None
+    _game_context["end_override"] = None
+    _broadcast_state()  # Announce game start (in_progress, starting FEN)
     
     bot = None
     if game_mode == "single":
@@ -522,6 +558,7 @@ def play_game(game_mode, elo=1600, human_color="white"):
             
             mover = "White" if board.turn else "Black"
             print(f"\n{mover} to move.")
+            _broadcast_state()  # Push state at the start of each turn
             
             # Check if it is the bot's turn
             is_bot_turn = (
@@ -685,12 +722,15 @@ def play_game(game_mode, elo=1600, human_color="white"):
 
     if game_end_override:
         result, message = game_end_override
+        _game_context["end_override"] = game_end_override
+        _broadcast_state()  # Broadcast final resigned/drawn state
         save_pgn(result_override=result)
         print()
         print(board)
         print(f"\n{message}")
         speak(message)
     else:
+        _broadcast_state()  # Broadcast checkmate/stalemate/draw
         save_pgn()
         print()
         print(board)
