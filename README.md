@@ -4,7 +4,9 @@ Play chess against yourself (or a friend, over the board) using nothing but your
 
 ## How it works
 
-1. **Push-to-talk**: hold the spacebar to record, release to stop (via `pynput`, no fixed time limit).
+1. **Two input modes**, chosen by voice at startup:
+   - **Push-to-talk**: hold the spacebar to record, release to stop (via `pynput`, no fixed time limit), then press Enter to confirm.
+   - **Fully voice**: no keyboard at all. Recording starts and stops automatically via silence detection, and you confirm or redo a heard move by saying "confirm" or "repeat".
 2. **Speech-to-text**: [faster-whisper](https://github.com/SYSTRAN/faster-whisper) transcribes what you said, primed with a vocabulary hint that's rebuilt every turn from the actual legal moves on the board (better accuracy as the game narrows down).
 3. **Parsing**: the transcript ("knight to f3", "e4", "castle kingside") is converted into standard algebraic notation and validated with [python-chess](https://python-chess.readthedocs.io/).
 4. **Confirmation**: before a move is committed, you're asked to confirm what was heard — say the wrong thing and it just re-records instead of silently pushing a bad move.
@@ -32,10 +34,14 @@ python3 voicerecognition.py
 
 You'll be offered a one-time mic/speaker self-test, then the game begins. Controls during play:
 
-- **Hold SPACE** to speak your move, release when done
-- Say or type **"undo"** to take back the last move
-- After 3 failed recognition attempts in a row, it falls back to typing that move directly
+- At startup, say **"push to talk"** or **"fully voice"** to pick your mode.
+- **Push-to-talk mode**: hold SPACE to speak your move, release when done, then press Enter to confirm. Say or type **"undo"**/**"resign"**/**"draw"**. After 3 failed recognition attempts in a row, it falls back to typing the move directly.
+- **Fully voice mode**: no keyboard needed. Speak your move when prompted, then say **"confirm"** or **"repeat"**. Say **"undo"**, **"resign"**, **"draw"**, or **"pause"** (then **"resume"** to continue) at any time.
 - **Ctrl+C** to quit — the game is saved as a `.pgn` file either way
+
+## Requirements (dev)
+
+To run the unit test suite: `pip install -r requirements-dev.txt`, then `python3 -m pytest tests/ -v`.
 
 ## Voice command examples
 

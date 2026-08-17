@@ -23,6 +23,8 @@ from pynput import keyboard as kb
 import contextlib
 import sys
 import subprocess
+from silence_detector import record_auto
+from speech_matching import match_mode_selection, match_self_test_response, match_confirm_response, detect_command
 
 @contextlib.contextmanager
 def suppress_native_stderr():
@@ -270,17 +272,59 @@ except Exception:
     pass
 
 print(f"\nVoiceChess ready. {board.legal_moves.count()} legal opening moves.")
-run_test = input("Press Enter to test your mic & speaker setup first, or type 's' to skip: ").strip().lower()
-if run_test != "s":
-    test_move = input("Type a move to speak back (default e4): ").strip() or "e4"
-    asyncio.run(generate_chess_move_audio(test_move, "_selftest.wav"))
-    heard = test_whisper_accuracy("_selftest.wav", prompt_string)
-    print(f"Spoke: \"{test_move}\"  ->  Whisper heard: \"{heard}\"")
-    if os.path.exists("_selftest.wav"):
-        os.remove("_selftest.wav")
 
-print("\nGame started. Hold SPACE to speak your move on your turn.")
-print("Say 'undo' to take back a move, 'resign' to forfeit, or 'draw' to end in a draw. Ctrl+C to quit.")
+
+def select_mode():
+    """Spoken prompt to choose between push-to-talk and fully-voice mode.
+    Runs before any keyboard-vs-voice branching, since the mode itself
+    hasn't been picked yet."""
+    speak("Say push to talk, or say fully voice.")
+    while True:
+        audio_file = record_auto()
+        text = test_whisper_accuracy(audio_file, "push to talk, fully voice, hands free, spacebar") if audio_file else ""
+        choice = match_mode_selection(text)
+        if choice:
+            return choice
+        speak("Sorry, I didn't catch that. Say push to talk, or say fully voice.")
+
+
+MODE = select_mode()
+print(f"Mode selected: {'Push-to-talk' if MODE == 'ptt' else 'Fully voice'}")
+
+if MODE == "ptt":
+    run_test = input("Press Enter to test your mic & speaker setup first, or type 's' to skip: ").strip().lower()
+    if run_test != "s":
+        test_move = input("Type a move to speak back (default e4): ").strip() or "e4"
+        asyncio.run(generate_chess_move_audio(test_move, "_selftest.wav"))
+        heard = test_whisper_accuracy("_selftest.wav", prompt_string)
+        print(f"Spoke: \"{test_move}\"  ->  Whisper heard: \"{heard}\"")
+        if os.path.exists("_selftest.wav"):
+            os.remove("_selftest.wav")
+else:
+    speak("Say test to check your mic, or say skip.")
+    while True:
+        audio_file = record_auto()
+        response_text = test_whisper_accuracy(audio_file, "test, skip") if audio_file else ""
+        choice = match_self_test_response(response_text)
+        if choice == "skip":
+            break
+        if choice == "test":
+            test_move = "e4"
+            asyncio.run(generate_chess_move_audio(test_move, "_selftest.wav"))
+            heard = test_whisper_accuracy("_selftest.wav", prompt_string)
+            print(f"Spoke: \"{test_move}\"  ->  Whisper heard: \"{heard}\"")
+            speak(f"I said {test_move} and heard back {heard}")
+            if os.path.exists("_selftest.wav"):
+                os.remove("_selftest.wav")
+            break
+        speak("Sorry, say test to check your mic, or say skip.")
+
+if MODE == "ptt":
+    print("\nGame started. Hold SPACE to speak your move on your turn.")
+    print("Say 'undo' to take back a move, 'resign' to forfeit, or 'draw' to end in a draw. Ctrl+C to quit.")
+else:
+    print("\nGame started in fully-voice mode. Listen for the prompt, then speak your move.")
+    print("Say 'undo', 'resign', 'draw', or 'pause' at any time. Ctrl+C to quit.")
 
 MAX_FAILS_BEFORE_TYPED_FALLBACK = 3
 game_end_override = None  # (pgn_result, spoken/printed message), set by resign/draw
@@ -297,6 +341,18 @@ def declare_draw_by_agreement():
     global game_end_override
     game_end_override = ("1/2-1/2", "Game drawn by agreement.")
 
+def wait_for_resume():
+    """Mode 2 only: freezes the game and listens (silently, no re-prompt
+    spam between attempts) until the player says "resume"."""
+    speak("Game paused. Say resume to continue.")
+    while True:
+        audio_file = record_auto()
+        if audio_file is None:
+            continue
+        text = test_whisper_accuracy(audio_file, "resume")
+        if "resume" in text.lower():
+            return
+
 try:
     while not board.is_game_over() and game_end_override is None:
         print()
@@ -305,72 +361,125 @@ try:
             print(f"Moves so far: {format_history()}")
         mover = "White" if board.turn else "Black"
         print(f"\n{mover} to move.")
+        if MODE == "voice":
+            speak(f"{mover} to move.")
         Moved = False
         fail_count = 0
         while not Moved and game_end_override is None:
-            if fail_count >= MAX_FAILS_BEFORE_TYPED_FALLBACK:
-                typed = input("\nHaving trouble hearing you — type your move directly (or 'undo'/'resign'/'draw'): ").strip()
-                if not typed:
+            if MODE == "ptt":
+                if fail_count >= MAX_FAILS_BEFORE_TYPED_FALLBACK:
+                    typed = input("\nHaving trouble hearing you — type your move directly (or 'undo'/'resign'/'draw'): ").strip()
+                    if not typed:
+                        fail_count = 0
+                        continue
+                    command = detect_command(typed)
+                    if command == "undo":
+                        undo_last_move()
+                        break
+                    if command == "resign":
+                        declare_resignation(mover)
+                        break
+                    if command == "draw":
+                        declare_draw_by_agreement()
+                        break
+                    Moved = tryMove(typed)
+                    if not Moved:
+                        print("Please try again.")
+                        speak("Illegal move, please try again.")
+                    else:
+                        speak(f"{mover} plays {spoken_san(move_history[-1])}")
                     fail_count = 0
                     continue
-                typed_lower = typed.lower()
-                if typed_lower in ("undo", "takeback", "take back"):
+
+                audio_file = record()
+                if audio_file is None:
+                    fail_count += 1
+                    continue
+
+                DetectedText = test_whisper_accuracy(audio_file, build_prompt())
+                command = detect_command(DetectedText)
+                if command == "undo":
                     undo_last_move()
                     break
-                if typed_lower in ("resign", "i resign"):
+                if command == "resign":
                     declare_resignation(mover)
                     break
-                if typed_lower in ("draw", "offer draw", "agree draw"):
+                if command == "draw":
                     declare_draw_by_agreement()
                     break
-                Moved = tryMove(typed)
+
+                if not DetectedText:
+                    print("Didn't catch anything — please repeat your move.")
+                    fail_count += 1
+                    continue
+
+                realMove = WordsToMove(DetectedText)
+                if not realMove:
+                    print(f"Could not parse a move from: \"{DetectedText}\" — please repeat your move.")
+                    fail_count += 1
+                    continue
+
+                confirm = input(f"Heard: {realMove} — press Enter to confirm, or type anything to redo: ").strip()
+                if confirm:
+                    continue
+
+                Moved = tryMove(realMove)
                 if not Moved:
-                    print("Please try again.")
-                    speak("Illegal move, please try again.")
+                    print("Please repeat your move.")
+                    speak("Illegal move, please repeat.")
+                    fail_count += 1
                 else:
                     speak(f"{mover} plays {spoken_san(move_history[-1])}")
-                fail_count = 0
-                continue
 
-            audio_file = record()
-            if audio_file is None:
-                fail_count += 1
-                continue
+            else:  # MODE == "voice"
+                audio_file = record_auto()
+                if audio_file is None:
+                    speak("Sorry, please say your move again.")
+                    continue
 
-            DetectedText = test_whisper_accuracy(audio_file, build_prompt())
-            normalized = DetectedText.lower()
-            if "undo" in normalized or "take back" in normalized or "takeback" in normalized:
-                undo_last_move()
-                break
-            if "resign" in normalized:
-                declare_resignation(mover)
-                break
-            if "draw" in normalized:
-                declare_draw_by_agreement()
-                break
+                DetectedText = test_whisper_accuracy(audio_file, build_prompt())
+                command = detect_command(DetectedText)
+                if command == "undo":
+                    undo_last_move()
+                    speak("Move undone.")
+                    break
+                if command == "resign":
+                    declare_resignation(mover)
+                    break
+                if command == "draw":
+                    declare_draw_by_agreement()
+                    break
+                if command == "pause":
+                    wait_for_resume()
+                    speak(f"Resuming. {mover} to move.")
+                    continue
 
-            if not DetectedText:
-                print("Didn't catch anything — please repeat your move.")
-                fail_count += 1
-                continue
+                if not DetectedText:
+                    speak("Sorry, please say your move again.")
+                    continue
 
-            realMove = WordsToMove(DetectedText)
-            if not realMove:
-                print(f"Could not parse a move from: \"{DetectedText}\" — please repeat your move.")
-                fail_count += 1
-                continue
+                realMove = WordsToMove(DetectedText)
+                if not realMove:
+                    speak("Sorry, please say your move again.")
+                    continue
 
-            confirm = input(f"Heard: {realMove} — press Enter to confirm, or type anything to redo: ").strip()
-            if confirm:
-                continue
+                speak(f"I heard {realMove}. Say confirm or repeat.")
+                confirmed = None
+                while confirmed is None:
+                    response_audio = record_auto()
+                    response_text = test_whisper_accuracy(response_audio, "confirm, repeat") if response_audio else ""
+                    confirmed = match_confirm_response(response_text)
+                    if confirmed is None:
+                        speak("Please say confirm or repeat.")
 
-            Moved = tryMove(realMove)
-            if not Moved:
-                print("Please repeat your move.")
-                speak("Illegal move, please repeat.")
-                fail_count += 1
-            else:
-                speak(f"{mover} plays {spoken_san(move_history[-1])}")
+                if confirmed == "repeat":
+                    continue
+
+                Moved = tryMove(realMove)
+                if not Moved:
+                    speak("That's not a legal move. Please say your move again.")
+                else:
+                    speak(f"{mover} plays {spoken_san(move_history[-1])}")
 except KeyboardInterrupt:
     print("\nGame abandoned.")
     save_pgn()
