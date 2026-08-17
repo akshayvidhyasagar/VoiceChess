@@ -6,6 +6,11 @@ wires the detector to a live sounddevice stream, mirroring the existing
 spacebar-driven record() in voicerecognition.py.
 """
 
+import os
+import numpy as np
+import sounddevice as sd
+import scipy.io.wavfile as wav
+
 
 def compute_thresholds(calibration_rms_samples):
     """Derives speech/silence RMS thresholds from a short ambient-noise sample.
@@ -66,3 +71,48 @@ class SilenceDetector:
         if self.started and self.silence_elapsed >= self.silence_hang_duration:
             return "stop_silence"
         return "continue"
+
+
+def record_auto(sampleRate=16000, filename="recording_auto.wav"):
+    """
+    Hands-free recording: starts automatically once speech is detected,
+    stops after a period of silence following that speech. Returns the
+    filename, or None if no speech was detected before timing out.
+    """
+    chunks = []
+    calibration_rms = []
+    calibration_chunks_needed = 3  # ~0.3s of ambient noise sampled at stream start
+
+    state = {"detector": None, "result": None}
+
+    def audio_callback(indata, frames, time_info, status):
+        rms = float(np.sqrt(np.mean(np.square(indata))))
+        if state["detector"] is None:
+            calibration_rms.append(rms)
+            if len(calibration_rms) >= calibration_chunks_needed:
+                speech_threshold, silence_threshold = compute_thresholds(calibration_rms)
+                state["detector"] = SilenceDetector(speech_threshold, silence_threshold)
+            return
+        chunks.append(indata.copy())
+        action = state["detector"].feed(rms)
+        if action != "continue" and state["result"] is None:
+            state["result"] = action
+
+    blocksize = int(sampleRate * DEFAULT_CHUNK_DURATION)
+    stream = sd.InputStream(samplerate=sampleRate, channels=1, dtype="float32",
+                             blocksize=blocksize, callback=audio_callback)
+    print("[Mic] Listening...")
+    with stream:
+        while state["result"] is None:
+            sd.sleep(int(DEFAULT_CHUNK_DURATION * 1000))
+    print(f"[Mic] Stopped ({state['result']}).")
+
+    if state["result"] == "stop_timeout" or not chunks:
+        return None
+
+    audio = np.concatenate(chunks, axis=0).flatten()
+    pcm = np.clip(audio, -1.0, 1.0)
+    if os.path.exists(filename):
+        os.remove(filename)
+    wav.write(filename, sampleRate, (pcm * 32767).astype(np.int16))
+    return filename
