@@ -8,6 +8,8 @@ Follows the same pytest conventions as the rest of the test suite:
 
 from fastapi.testclient import TestClient
 from server import app, game_setup
+from unittest.mock import Mock, patch
+import io
 
 
 # ---------------------------------------------------------------------------
@@ -142,3 +144,52 @@ def test_play_again_endpoint_no():
     assert game_setup["elo"] == state_before["elo"]
     assert game_setup["human_color"] == state_before["human_color"]
     assert game_setup["ready"] == state_before["ready"]
+
+
+# ---------------------------------------------------------------------------
+# Transcribe endpoint
+# ---------------------------------------------------------------------------
+
+def test_transcribe_endpoint_valid_audio():
+    """POST /api/transcribe with valid audio returns transcript and confidence."""
+    client = TestClient(app)
+
+    # Mock a segment object that has .text attribute
+    mock_segment = Mock()
+    mock_segment.text = "knight to f3"
+
+    # Mock the model.transcribe method to return segments and info
+    with patch("voicerecognition.model.transcribe") as mock_transcribe:
+        mock_transcribe.return_value = ([mock_segment], {"language": "en"})
+
+        # Create a fake WAV file bytes
+        audio_bytes = b"RIFF\x00\x00\x00\x00WAVEfmt \x10\x00\x00\x00"
+        audio_file = ("test_audio.wav", io.BytesIO(audio_bytes), "audio/wav")
+
+        response = client.post("/api/transcribe", files={"audio": audio_file})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["transcript"] == "knight to f3"
+    assert "confidence" in data
+    assert isinstance(data["confidence"], (int, float))
+
+
+def test_transcribe_endpoint_empty_audio():
+    """POST /api/transcribe with no speech segments returns empty transcript."""
+    client = TestClient(app)
+
+    # Mock the model.transcribe method to return no segments
+    with patch("voicerecognition.model.transcribe") as mock_transcribe:
+        mock_transcribe.return_value = ([], {"language": "en"})
+
+        # Create a fake WAV file bytes
+        audio_bytes = b"RIFF\x00\x00\x00\x00WAVEfmt \x10\x00\x00\x00"
+        audio_file = ("test_audio.wav", io.BytesIO(audio_bytes), "audio/wav")
+
+        response = client.post("/api/transcribe", files={"audio": audio_file})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["transcript"] == ""
+    assert data["confidence"] == 0.0

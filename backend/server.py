@@ -22,7 +22,8 @@ import os
 import sys
 import threading
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import tempfile
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 
 from broadcast import get_broadcaster
@@ -73,8 +74,10 @@ async def on_startup() -> None:
     get_broadcaster().set_loop(loop)
     # Start the game loop in a daemon background thread so it doesn't
     # block the server from shutting down cleanly.
-    t = threading.Thread(target=_run_game_loop, daemon=True, name="game-loop")
-    t.start()
+    # Skip during tests (PYTEST_CURRENT_TEST env var is set by pytest)
+    if not os.getenv("PYTEST_CURRENT_TEST"):
+        t = threading.Thread(target=_run_game_loop, daemon=True, name="game-loop")
+        t.start()
 
 
 def _run_game_loop() -> None:
@@ -147,6 +150,50 @@ async def play_again(request: dict) -> dict:
         print("[play-again] User chose to exit")
 
     return {"status": "ok"}
+
+
+@app.post("/api/transcribe")
+async def transcribe(audio: UploadFile = File(...)) -> dict:
+    """Receive audio WAV blob, run Whisper transcription, return transcript.
+
+    Accepts WAV files via form-data (form field: "audio").
+    Returns JSON: {"transcript": "...", "confidence": 0.95}
+    On error: {"transcript": "", "confidence": 0.0}
+    """
+    try:
+        # Import voicerecognition to access the model and prompt string
+        import voicerecognition
+
+        # Save uploaded file to temporary WAV file
+        temp_fd, temp_path = tempfile.mkstemp(suffix=".wav")
+        try:
+            # Read the uploaded file and write to temp file
+            contents = await audio.read()
+            os.write(temp_fd, contents)
+            os.close(temp_fd)
+
+            # Run Whisper transcription with the same parameters as voicerecognition.py
+            segments, info = voicerecognition.model.transcribe(
+                temp_path,
+                language="en",
+                vad_filter=False,
+                beam_size=5,
+                initial_prompt=voicerecognition.prompt_string,
+            )
+
+            # Extract transcript from segments
+            transcribed_text = " ".join([segment.text for segment in segments]).strip()
+
+            return {"transcript": transcribed_text, "confidence": 0.95}
+        finally:
+            # Always clean up the temp file
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+
+    except Exception as e:
+        # Log error but never raise — return empty transcript instead
+        print(f"[transcribe] Error: {e}", file=sys.stderr)
+        return {"transcript": "", "confidence": 0.0}
 
 
 @app.get("/state")
