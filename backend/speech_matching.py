@@ -99,9 +99,9 @@ def match_game_mode(text):
     single_words = ("single", "one player", "vs bot", "versus bot", "computer", "bot", "stockfish", "solo")
     double_words = ("double", "two player", "two players", "versus human", "vs human", "multiplayer", "local")
 
-    if any(word in normalized for word in single_words):
+    if _has_word(normalized, single_words):
         return "single"
-    if any(word in normalized for word in double_words):
+    if _has_word(normalized, double_words):
         return "double"
     return None
 
