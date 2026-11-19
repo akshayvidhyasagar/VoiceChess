@@ -97,6 +97,12 @@ python -m pyflakes backend tests
 | "castle kingside" | `O-O` |
 | "castle queenside" | `O-O-O` |
 
+## Troubleshooting
+
+- **Spacebar does nothing in push-to-talk mode**: grant your terminal *Input Monitoring* access in System Settings → Privacy & Security, then restart the terminal.
+- **No speech is picked up**: check the system's default input device, and that the terminal has *Microphone* permission.
+- **vs Computer mode can't start**: make sure Stockfish is installed (`brew install stockfish`) or set `STOCKFISH_PATH`.
+
 ## Output
 
 Each game is saved as a timestamped `game_YYYYMMDD_HHMMSS.pgn` file in the project directory when it ends or is quit.
