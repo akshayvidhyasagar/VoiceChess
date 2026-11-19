@@ -40,6 +40,12 @@ def match_self_test_response(text):
     return None
 
 
+def _has_word(normalized, words):
+    """True if any of `words` appears in `normalized` as a whole word or phrase."""
+    padded = f" {' '.join(normalized.split())} "
+    return any(f" {w} " in padded for w in words)
+
+
 def match_confirm_response(text):
     """Parse spoken input to confirm or reject a suggestion.
 
@@ -52,9 +58,9 @@ def match_confirm_response(text):
     normalized = _normalize(text)
     confirm_words = ("confirm", "yes", "correct", "right")
     repeat_words = ("repeat", "no", "redo", "wrong")
-    if any(word in normalized for word in confirm_words):
+    if _has_word(normalized, confirm_words):
         return "confirm"
-    if any(word in normalized for word in repeat_words):
+    if _has_word(normalized, repeat_words):
         return "repeat"
     return None
 
