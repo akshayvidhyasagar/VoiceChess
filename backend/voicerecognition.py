@@ -25,15 +25,13 @@ import sys
 import subprocess
 from silence_detector import record_auto
 from speech_matching import (
-    match_mode_selection,
-    match_self_test_response,
     match_confirm_response,
     detect_command,
     match_game_mode,
     parse_elo,
     match_color_selection,
 )
-from stockfish_engine import StockfishBot, find_stockfish
+from stockfish_engine import StockfishBot
 
 # Broadcast hook — imported lazily so voicerecognition.py still works
 # standalone (without the server deps installed).
