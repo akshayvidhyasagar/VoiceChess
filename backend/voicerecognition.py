@@ -64,7 +64,6 @@ board = chess.Board()
 
 
 def LegalMoves():
-    global board
     chess_hints = []
     legal_moves = [board.san(move) for move in board.legal_moves]
     for move in legal_moves:
@@ -156,7 +155,6 @@ def _tick_move_clock() -> None:
 
 
 def tryMove(move):
-    global board
     try:
         valMove = board.parse_san(move)
     except ValueError:
@@ -192,7 +190,6 @@ def format_history():
 
 
 def undo_last_move():
-    global board
     if not move_history:
         print("No moves to undo yet.")
         return
@@ -308,8 +305,6 @@ def record(sampleRate=16000, filename="recording.wav", max_duration=20):
     return filename
 
 def test_whisper_accuracy(audio_file, prompt=None):
-    global prompt_string
-    global model
 
     segments, info = model.transcribe(audio_file, language="en", vad_filter=True, beam_size=1, initial_prompt=prompt or prompt_string)
     transcribed_text = " ".join([segment.text for segment in segments]).strip()
