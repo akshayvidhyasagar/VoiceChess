@@ -4,6 +4,8 @@ These operate on already-transcribed text and contain no I/O, so they're
 unit-testable without a microphone or the Whisper model.
 """
 
+import re
+
 
 def _normalize(text):
     """Normalize text: convert to lowercase and replace non-alphanumeric chars with spaces."""
@@ -107,7 +109,6 @@ def parse_elo(text):
     Returns:
         An integer ELO rating, or None if unrecognized.
     """
-    import re
     normalized = _normalize(text)
 
     # Check for presets
