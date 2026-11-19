@@ -115,7 +115,6 @@ async def setup(config: dict) -> dict:
     Populates the shared game_setup dict and signals the backend thread to proceed.
     Immediately broadcasts an in_progress state so the frontend transitions to the board.
     """
-    global game_setup
     game_setup["input_mode"] = config.get("input_mode")
     game_setup["game_mode"] = config.get("game_mode")
     game_setup["elo"] = config.get("elo")
@@ -158,7 +157,6 @@ async def play_again(request: dict) -> dict:
     If play_again is 'yes': reset game_setup dict to allow new game configuration.
     If play_again is 'no': log the exit; frontend handles close.
     """
-    global game_setup
     user_choice = request.get("play_again")
 
     if user_choice == "yes":
