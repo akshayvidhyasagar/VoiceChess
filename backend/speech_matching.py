@@ -150,7 +150,7 @@ def match_color_selection(text):
         return "white"
     if "black" in normalized:
         return "black"
-    if "random" in normalized or "either" in normalized or "any" in normalized:
+    if _has_word(normalized, ("random", "either", "any")):
         return "random"
     return None
 
