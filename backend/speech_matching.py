@@ -75,13 +75,13 @@ def detect_command(text):
         "undo", "resign", "draw", or "pause" if recognized, or None if unrecognized.
     """
     normalized = _normalize(text)
-    if "undo" in normalized or "take back" in normalized or "takeback" in normalized:
+    if _has_word(normalized, ("undo", "take back", "takeback")):
         return "undo"
-    if "resign" in normalized:
+    if _has_word(normalized, ("resign",)):
         return "resign"
-    if "draw" in normalized:
+    if _has_word(normalized, ("draw",)):
         return "draw"
-    if "pause" in normalized:
+    if _has_word(normalized, ("pause",)):
         return "pause"
     return None
 
