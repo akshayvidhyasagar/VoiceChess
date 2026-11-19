@@ -106,3 +106,10 @@ def test_match_confirm_response_ignores_substrings():
     assert match_confirm_response("now") is None
     assert match_confirm_response("no") == "repeat"
     assert match_confirm_response("yes that's right") == "confirm"
+
+
+def test_match_game_mode_ignores_substrings():
+    # "bot" is inside "both"
+    assert match_game_mode("both of us") is None
+    assert match_game_mode("play the bot") == "single"
+    assert match_game_mode("two player") == "double"
