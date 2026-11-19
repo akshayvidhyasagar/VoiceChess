@@ -78,6 +78,14 @@ At startup you will be guided by voice through:
 
 To run the unit test suite: `pip install -r requirements-dev.txt`, then `python3 -m pytest tests/ -v`.
 
+## Linting
+
+Unused imports and variables are caught with [pyflakes](https://github.com/PyCQA/pyflakes) (included in `requirements-dev.txt`):
+
+```bash
+python -m pyflakes backend tests
+```
+
 ## Voice command examples
 
 | You say | Interpreted as |
