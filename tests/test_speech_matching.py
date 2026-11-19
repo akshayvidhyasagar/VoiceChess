@@ -119,3 +119,9 @@ def test_match_color_selection_ignores_substrings():
     # "any" is inside "many"
     assert match_color_selection("many") is None
     assert match_color_selection("any color") == "random"
+
+
+def test_detect_command_ignores_substrings():
+    # "draw" is inside "withdraw"
+    assert detect_command("withdraw") is None
+    assert detect_command("offer a draw") == "draw"
