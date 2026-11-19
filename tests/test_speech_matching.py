@@ -113,3 +113,9 @@ def test_match_game_mode_ignores_substrings():
     assert match_game_mode("both of us") is None
     assert match_game_mode("play the bot") == "single"
     assert match_game_mode("two player") == "double"
+
+
+def test_match_color_selection_ignores_substrings():
+    # "any" is inside "many"
+    assert match_color_selection("many") is None
+    assert match_color_selection("any color") == "random"
