@@ -7,7 +7,6 @@ Follows the same pytest conventions as the rest of the test suite:
 """
 
 import chess
-import pytest
 from broadcast import build_payload, get_broadcaster, GameBroadcaster
 
 

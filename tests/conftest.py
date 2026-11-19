@@ -7,7 +7,7 @@ environment variable (set by pytest itself).
 
 import os
 import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 # Mark this as a test run so voicerecognition.py skips the game loop
 if "PYTEST_CURRENT_TEST" not in os.environ:
