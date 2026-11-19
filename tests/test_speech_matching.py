@@ -98,3 +98,11 @@ def test_match_color_selection():
     assert match_color_selection("banana") is None
     assert match_color_selection("") is None
 
+
+
+def test_match_confirm_response_ignores_substrings():
+    # "no" is inside "know" and "right" is inside "alright"; neither is a real answer
+    assert match_confirm_response("I know") is None
+    assert match_confirm_response("now") is None
+    assert match_confirm_response("no") == "repeat"
+    assert match_confirm_response("yes that's right") == "confirm"
